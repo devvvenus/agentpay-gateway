@@ -16,6 +16,20 @@ import type { AgentPayStore } from "@agentpay/db";
 
 export type PaymentMode = "x402" | "test";
 
+const ARC_TESTNET_GATEWAY_WALLET = "0x0077777d7EBA4688BDeF3E311b846F25870A19B9";
+
+interface CirclePaymentPayload {
+  x402Version: number;
+  resource?: {
+    url: string;
+    description: string;
+    mimeType: string;
+  };
+  accepted?: Record<string, unknown>;
+  payload: Record<string, unknown>;
+  extensions?: Record<string, unknown>;
+}
+
 export interface PaymentRuntimeConfig {
   network: string;
   mode: PaymentMode;
@@ -98,8 +112,9 @@ export class PaymentService {
           description: resource.description,
           maxTimeoutSeconds: 60,
           extra: {
-            name: "USDC",
-            version: "2"
+            name: "GatewayWalletBatched",
+            version: "1",
+            verifyingContract: ARC_TESTNET_GATEWAY_WALLET
           }
         }
       ]
@@ -215,16 +230,17 @@ export class PaymentService {
     if (this.config.mode !== "x402") {
       return { ok: true, status: "settled", evidence: { mode: this.config.mode } };
     }
-    if (!this.config.facilitatorUrl) {
-      return {
-        ok: false,
-        status: "misconfigured",
-        error: "X402_FACILITATOR_URL is required for server-side settlement verification"
-      };
-    }
     const paymentHeader = getPaymentHeader(input.headers);
     if (!paymentHeader) {
       return { ok: false, status: "failed", error: "Missing x402 payment header" };
+    }
+    if (!this.config.facilitatorUrl) {
+      return verifyCircleGatewaySettlement({
+        paymentHeader: paymentHeader.value,
+        resource: input.resource,
+        provider: input.provider,
+        network: this.config.network
+      });
     }
     try {
       const response = await fetch(this.config.facilitatorUrl, {
@@ -319,6 +335,71 @@ export class PaymentService {
     assertConfiguredWallet(this.config.buyerAddress, "BUYER_ADDRESS");
     if (provider) assertConfiguredWallet(provider.walletAddress, `provider wallet for ${provider.name}`);
   }
+}
+
+async function verifyCircleGatewaySettlement(input: {
+  paymentHeader: string;
+  resource: Resource;
+  provider: Provider;
+  network: string;
+}): Promise<SettlementVerificationResult> {
+  try {
+    const { BatchFacilitatorClient } = await import("@circle-fin/x402-batching/server");
+    const paymentPayload = JSON.parse(Buffer.from(input.paymentHeader, "base64").toString("utf8")) as CirclePaymentPayload;
+    const requirements = buildCircleGatewayRequirements(input.resource, input.provider, input.network);
+    const facilitator = new BatchFacilitatorClient();
+    const verifyResult = await facilitator.verify(paymentPayload, requirements);
+    if (!verifyResult.isValid) {
+      return {
+        ok: false,
+        status: "failed",
+        error: String(verifyResult.invalidReason || "Circle Gateway payment verification failed"),
+        evidence: { verifyResult }
+      };
+    }
+    const settleResult = await facilitator.settle(paymentPayload, requirements);
+    if (!settleResult.success) {
+      return {
+        ok: false,
+        status: "failed",
+        error: String(settleResult.errorReason || "Circle Gateway settlement failed"),
+        evidence: { verifyResult, settleResult }
+      };
+    }
+    return {
+      ok: true,
+      status: "settled",
+      evidence: {
+        verifier: "circle-gateway-batching",
+        payer: settleResult.payer ?? verifyResult.payer,
+        transaction: settleResult.transaction,
+        verifyResult,
+        settleResult
+      }
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      status: "failed",
+      error: error instanceof Error ? error.message : "Circle Gateway settlement verification failed"
+    };
+  }
+}
+
+function buildCircleGatewayRequirements(resource: Resource, provider: Provider, network: string) {
+  return {
+    scheme: "exact" as const,
+    network,
+    asset: ARC_TESTNET_USDC_ADDRESS,
+    amount: usdcToAtomic(resource.priceUsdc),
+    payTo: provider.walletAddress,
+    maxTimeoutSeconds: 345600,
+    extra: {
+      name: "GatewayWalletBatched",
+      version: "1",
+      verifyingContract: ARC_TESTNET_GATEWAY_WALLET
+    }
+  };
 }
 
 function getPaymentHeader(headers: Headers): { name: string; value: string } | undefined {

@@ -29,7 +29,8 @@ describe("payment boundary", () => {
     expect(result.ok).toBe(false);
     expect(result.challenge?.status).toBe(402);
     expect(result.challenge?.accepts[0]?.scheme).toBe("exact");
-    expect(result.challenge?.accepts[0]?.extra?.name).toBe("USDC");
+    expect(result.challenge?.accepts[0]?.extra?.name).toBe("GatewayWalletBatched");
+    expect(result.challenge?.accepts[0]?.extra?.verifyingContract).toBeDefined();
     expect(result.challenge?.accepts[0]?.payTo).toBe(provider!.walletAddress);
   });
 
@@ -155,7 +156,7 @@ describe("payment boundary", () => {
     expect(store.listProviderEarnings()[0]?.settlementStatus).toBe("pending");
   });
 
-  it("fails x402 settlement when no server-side verifier is configured", async () => {
+  it("falls back to Circle Gateway settlement when no custom verifier URL is configured", async () => {
     const store = new AgentPayStore(seedData({
       SELLER_ADDRESS: "0x1111111111111111111111111111111111111111",
       BUYER_ADDRESS: "0x2222222222222222222222222222222222222222"
@@ -166,7 +167,9 @@ describe("payment boundary", () => {
       ...x402Config(provider.walletAddress),
       facilitatorUrl: undefined
     });
-    const headers = new Headers({ "payment-signature": "test-signature" });
+    const headers = new Headers({
+      "payment-signature": Buffer.from(JSON.stringify({ x402Version: 2, payload: {} })).toString("base64")
+    });
     const result = payment.verifyIncoming({
       resource,
       provider,
@@ -183,7 +186,8 @@ describe("payment boundary", () => {
     });
 
     expect(verification.ok).toBe(false);
-    expect(verification.status).toBe("misconfigured");
+    expect(verification.status).toBe("failed");
+    expect(verification.error).not.toContain("X402_FACILITATOR_URL");
   });
 
   it("rejects local-only provider wallets in x402 mode", () => {

@@ -106,6 +106,7 @@ export interface PaymentChallenge {
     extra?: {
       name: string;
       version: string;
+      verifyingContract?: string;
     };
   }>;
 }

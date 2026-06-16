@@ -58,19 +58,21 @@ describe("api routes", () => {
     expect(body.error).toContain("config.sql");
   });
 
-  it("does not execute a paid resource when settlement verification is not configured", async () => {
+  it("does not execute a paid resource when Circle Gateway settlement verification fails", async () => {
     process.env.SELLER_ADDRESS = "0x1111111111111111111111111111111111111111";
     process.env.BUYER_ADDRESS = "0x2222222222222222222222222222222222222222";
     const response = await payResource(
       new Request("http://localhost/api/pay/res_mcp_tools", {
-        headers: { "payment-signature": "signed" }
+        headers: {
+          "payment-signature": Buffer.from(JSON.stringify({ x402Version: 2, payload: {} })).toString("base64")
+        }
       }),
       { params: Promise.resolve({ resourceId: "res_mcp_tools" }) }
     );
     const body = await response.json();
 
-    expect(response.status).toBe(503);
-    expect(body.error).toContain("X402_FACILITATOR_URL");
+    expect(response.status).toBe(402);
+    expect(body.error).toBeTruthy();
   });
 
   it("maps signed webhook events into payment status updates", async () => {

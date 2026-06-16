@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@agentpay/db": "workspace:*",
-    "@agentpay/shared": "workspace:*"
+    "@agentpay/shared": "workspace:*",
+    "@circle-fin/x402-batching": "^2.1.0"
   }
 }
