@@ -325,12 +325,13 @@ const agentDelegationAdapter: PaidResourceAdapter = {
   quote: baseQuote,
   async execute(input, context) {
     const targetUrl = readConfigString(input.config, "targetUrl");
+    const prompt = input.prompt || readString(input.payload, "prompt") || "Arc x402 nanopayment research task";
     assertAllowedUrl(targetUrl, context.allowedHosts);
     const response = await fetchWithTimeout(targetUrl, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        prompt: input.prompt,
+        prompt,
         payload: input.payload,
         paymentIdentifier: context.payment.paymentIdentifier
       })
@@ -367,12 +368,13 @@ const inferenceAdapter: PaidResourceAdapter = {
   async execute(input, context) {
     const targetUrl = readConfigString(input.config, "targetUrl");
     const model = readConfigString(input.config, "model") || "agentpay-reasoner";
+    const prompt = input.prompt || readString(input.payload, "prompt") || "Arc x402 nanopayment reasoning task";
     assertAllowedUrl(targetUrl, context.allowedHosts);
     const response = await fetchWithTimeout(targetUrl, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        prompt: input.prompt,
+        prompt,
         model,
         paymentIdentifier: context.payment.paymentIdentifier
       })
