@@ -25,17 +25,25 @@ Expected result:
 
 ## Live deployment requirements
 
-- Public GitHub repository.
-- Vercel project for `apps/web`.
-- Worker host for `apps/worker` with public HTTPS URL.
-- Supabase project with migrations from `supabase/migrations`.
-- Arc Testnet buyer and seller wallets.
-- Circle/x402 facilitator configuration.
+- Public GitHub repository: https://github.com/kaos35/agentpay-gateway
+- Vercel production app: https://agentpay-gateway.vercel.app
+- Worker host for `apps/worker`: `http://49.13.60.236:8010`
+- Datasette upstream: `http://49.13.60.236:8011`
+- SearXNG upstream: `http://49.13.60.236:8012`
+- Supabase project configured for `runtime_snapshots`.
+- Arc Testnet buyer and seller wallets configured in Vercel and worker runtime.
+- Circle Gateway/x402 batching settlement verification configured server-side.
 - Environment variables copied from `.env.example` and set in Vercel/worker host.
 - `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` set on the web runtime so dashboard state persists across restarts.
-- `X402_FACILITATOR_URL` set and reachable from the web runtime.
 - `AGENTPAY_ADMIN_API_KEY` set before exposing provider publishing routes.
 - `AGENTPAY_WEBHOOK_SECRET` or `CIRCLE_WEBHOOK_SECRET` set before enabling webhook status updates.
+
+## Live verification on 2026-06-16
+
+- Direct adapter payment test: all 10 paid resources returned `settled|ok`.
+- Full integration run: `run_7729fefa-9dbc-45ed-843e-7909ff5187e4`.
+- Full integration result: 10/10 resources paid, 10/10 adapters fulfilled, 0 adapter errors, 0.016500 USDC spent, 2 paid citations.
+- Worker payer hardening: `/payer/pay-resource` runs Circle CLI asynchronously so worker-backed MCP/crawl/delegation/memory/inference/RSS endpoints can fulfill nested paid requests.
 
 ## Acceptance proof
 
@@ -43,7 +51,7 @@ Before submission, capture:
 
 - Live app URL.
 - Public repository URL.
-- A full integration run showing agent decisions, paid resources, skipped resources, receipts and provider earnings.
+- A full integration run showing agent decisions, paid resources, receipts and provider earnings.
 - A settled payment record where `attemptedPaidCalls`, `settledPaidCalls`, pending and failed metrics are visibly separated.
 - A webhook event that updates a known payment identifier to `settled` or `failed`.
 - A dashboard refresh after restart proving Supabase runtime persistence.

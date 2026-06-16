@@ -36,10 +36,19 @@ pnpm smoke:upstreams
 
 `pnpm smoke:upstreams` verified all ten adapter upstreams against running local services.
 
+Live verification on 2026-06-16:
+
+- Production URL: https://agentpay-gateway.vercel.app
+- Repository: https://github.com/kaos35/agentpay-gateway
+- VPS worker: `http://49.13.60.236:8010`
+- Direct live adapter payment smoke: all ten paid resources returned `settled|ok`.
+- Full integration stream run `run_7729fefa-9dbc-45ed-843e-7909ff5187e4`: 10 paid resources, 10 settled payments, 10 fulfilled adapters, 0 adapter errors, 0.016500 USDC spent, 2 paid citations.
+
 ## Audit boundaries
 
 - `.env.example` defaults to `x402`. Test-only payment helpers are restricted to test code and are not the product runtime path.
-- x402 mode requires real Arc testnet address-shaped buyer/provider wallets and `X402_FACILITATOR_URL`. Missing verifier configuration returns an error before adapter execution.
+- x402 mode requires real Arc testnet address-shaped buyer/provider wallets. Missing verifier configuration returns an error before adapter execution.
+- Circle Gateway batching settlement verification is the active server-side verifier path for live paid resources.
 - `.env.local` is intentionally ignored and may contain active x402 wallet/Circle CLI configuration.
 - Seed provider wallet fallback values are local-only defaults. x402 mode rejects those values; real local/testnet runs must set `SELLER_ADDRESS` or provider-specific `SELLER_ADDRESS_1`, `SELLER_ADDRESS_2` and `SELLER_ADDRESS_3`.
 - The SDK is a real local monorepo package, not a published npm package.
@@ -48,10 +57,6 @@ pnpm smoke:upstreams
 
 ## Still not complete
 
-- Public GitHub repository.
-- Hosted Vercel/live app URL.
-- Public HTTPS worker host.
-- Supabase project deployment and credentials in the live host.
 - Traction evidence: real users, real paid runs, provider/creator payout screenshots or receipts.
 - Recorded walkthrough under three minutes.
 

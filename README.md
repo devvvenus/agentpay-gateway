@@ -39,6 +39,16 @@ pnpm smoke:upstreams
 
 `pnpm smoke:upstreams` verifies all ten adapter paths against running local upstream services. Generated files such as `.next/`, `.agentpay/`, `*.log`, `*.tsbuildinfo` and `_tmp_*` are ignored and should not be used as audit evidence. See [Current audit state](docs/current-audit-state.md) for exact boundaries.
 
+Live production status on 2026-06-16:
+
+- App: https://agentpay-gateway.vercel.app
+- Repository: https://github.com/kaos35/agentpay-gateway
+- Worker: `http://49.13.60.236:8010`
+- Datasette: `http://49.13.60.236:8011`
+- SearXNG: `http://49.13.60.236:8012`
+- Latest full integration run: `run_7729fefa-9dbc-45ed-843e-7909ff5187e4`
+- Full integration result: 10 paid resources, 10 settled x402 payments, 10 adapter fulfillments, 0 adapter errors, 0.016500 USDC total spend, 2 paid citations.
+
 ## Local quickstart
 
 ```powershell
@@ -85,9 +95,9 @@ This command expects Datasette, SearXNG and the worker to already be running. It
 
 ## Testnet posture
 
-`.env.example` defaults to `AGENTPAY_PAYMENT_MODE=x402`. Configure `BUYER_ADDRESS`, `SELLER_ADDRESS`, provider-specific `SELLER_ADDRESS_1..3`, `X402_FACILITATOR_URL` and Circle CLI credentials in `.env.local` before running paid resources. Mainnet is blocked unless `ALLOW_MAINNET=true`.
+`.env.example` defaults to `AGENTPAY_PAYMENT_MODE=x402`. Configure `BUYER_ADDRESS`, `SELLER_ADDRESS`, provider-specific `SELLER_ADDRESS_1..3` and Circle CLI credentials in `.env.local` before running paid resources. Mainnet is blocked unless `ALLOW_MAINNET=true`.
 
-In x402 mode, provider wallets must be real Arc testnet address-shaped values. Local fallback provider addresses are rejected before resource fulfillment, and a missing `X402_FACILITATOR_URL` returns a verifier configuration error instead of executing an adapter.
+In x402 mode, provider wallets must be real Arc testnet address-shaped values. Local fallback provider addresses are rejected before resource fulfillment. Server-side verification uses Circle Gateway batching settlement verification; paid adapters execute only after verification succeeds.
 
 For live deployments, set `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` so runtime state persists to Supabase `runtime_snapshots`. Set `AGENTPAY_ADMIN_API_KEY` before exposing provider publishing and `AGENTPAY_WEBHOOK_SECRET` or `CIRCLE_WEBHOOK_SECRET` before accepting payment webhooks.
 
@@ -133,4 +143,4 @@ pnpm build
 
 - Used: `circlefin/arc-nanopayments` as the payment-flow reference, Crawl4AI as the worker target, Datasette/SearXNG/APISIX-style proxying, agent delegation, memory retrieval, inference endpoints and publisher/RSS paywall adapters.
 - Considered but skipped: native APISIX/Datasette plugins and platform forks, because the product strategy is adapter/proxy integration.
-- Still external to the repository: public GitHub URL, hosted app URL, public worker URL, live Supabase project credentials, traction evidence and recorded walkthrough.
+- Still external to the repository: live secrets, traction evidence and recorded walkthrough.
