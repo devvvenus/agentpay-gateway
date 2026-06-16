@@ -130,7 +130,7 @@ export function createAdapterConfigs(env: NodeJS.ProcessEnv = process.env) {
     resourceId: "res_inference_endpoint",
     config: {
       targetUrl: inferenceUrl,
-      model: env.AGENTPAY_INFERENCE_MODEL || "agentpay-reasoner"
+      model: env.AGENTPAY_INFERENCE_MODEL || "qwen3:14b"
     }
   },
   {
@@ -367,7 +367,7 @@ const inferenceAdapter: PaidResourceAdapter = {
   quote: baseQuote,
   async execute(input, context) {
     const targetUrl = readConfigString(input.config, "targetUrl");
-    const model = readConfigString(input.config, "model") || "agentpay-reasoner";
+    const model = readConfigString(input.config, "model") || "qwen3:14b";
     const prompt = input.prompt || readString(input.payload, "prompt") || "Arc x402 nanopayment reasoning task";
     assertAllowedUrl(targetUrl, context.allowedHosts);
     const response = await fetchWithTimeout(targetUrl, {

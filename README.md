@@ -81,9 +81,13 @@ With the default `.env.local`, the dataset, search, crawl, delegation, memory, i
 - `AGENTPAY_DELEGATION_URL=http://localhost:8000/agent/delegate`
 - `AGENTPAY_MEMORY_URL=http://localhost:8000/memory/retrieve`
 - `AGENTPAY_INFERENCE_URL=http://localhost:8000/inference/complete`
+- `AGENTPAY_INFERENCE_MODEL=qwen3:14b`
+- `OLLAMA_BASE_URL=http://127.0.0.1:11434`
 - `AGENTPAY_RSS_PAYWALL_URL=http://localhost:8000/rss/paywall`
 
 The seeded adapter registry points at these real upstream services. The full integration path calls those upstreams directly.
+
+The paid inference adapter uses Ollama when the worker can reach `OLLAMA_BASE_URL`. With the recommended local setup, `qwen3:14b` acts as the paid model endpoint. If Ollama is unavailable, the worker marks the response as `provider: local-fallback` instead of pretending a model call happened.
 
 Verify that the adapters reach the real upstream services:
 

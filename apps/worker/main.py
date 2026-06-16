@@ -34,7 +34,7 @@ class MemoryRequest(BaseModel):
 
 class InferenceRequest(BaseModel):
     prompt: str
-    model: str = "agentpay-reasoner"
+    model: str = "qwen3:14b"
     paymentIdentifier: str
     context: dict[str, Any] = {}
 
@@ -308,6 +308,60 @@ def build_inference_completion(prompt: str, evidence: list[str], terms: list[str
     )[:900]
 
 
+def build_inference_prompt(prompt: str, evidence: list[str], terms: list[str]) -> str:
+    evidence_text = "\n".join(f"- {item}" for item in evidence) if evidence else "- No external evidence supplied."
+    term_text = ", ".join(terms[:10]) if terms else "budget, confidence, source quality"
+    return (
+        "You are the paid inference endpoint inside AgentPay Gateway.\n"
+        "Your job is to help an AI agent decide whether paid internet resources were worth buying.\n"
+        "Be concise, concrete, and source-aware. Do not claim real-world facts that are not in the prompt or evidence.\n\n"
+        f"Key terms: {term_text}\n\n"
+        f"User task:\n{prompt}\n\n"
+        f"Evidence:\n{evidence_text}\n\n"
+        "Return a short decision memo with: decision, why the paid inference was useful, and what the agent should do next."
+    )
+
+
+async def generate_with_ollama(model: str, prompt: str) -> dict[str, Any] | None:
+    base_url = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434").rstrip("/")
+    timeout_seconds = float(os.getenv("OLLAMA_TIMEOUT_SECONDS", "90"))
+    payload = {
+        "model": model,
+        "prompt": prompt,
+        "stream": False,
+        "think": False,
+        "options": {
+            "temperature": 0.2,
+            "num_predict": 320,
+        },
+    }
+    try:
+        async with httpx.AsyncClient(timeout=timeout_seconds) as client:
+            response = await client.post(f"{base_url}/api/generate", json=payload)
+            response.raise_for_status()
+            data = response.json()
+            completion = str(data.get("response") or "").strip()
+            if not completion:
+                return None
+            return {
+                "provider": "ollama",
+                "baseUrl": base_url,
+                "completion": completion[:2000],
+                "raw": {
+                    "totalDuration": data.get("total_duration"),
+                    "loadDuration": data.get("load_duration"),
+                    "promptEvalCount": data.get("prompt_eval_count"),
+                    "evalCount": data.get("eval_count"),
+                    "doneReason": data.get("done_reason"),
+                },
+            }
+    except Exception as error:
+        return {
+            "provider": "local-fallback",
+            "error": str(error)[:500],
+        }
+
+
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok"}
@@ -378,9 +432,16 @@ async def complete_inference(request: InferenceRequest) -> dict[str, object]:
     source_text = f"{prompt}\n{context_text}".strip()
     terms = top_terms(source_text, limit=10)
     sentences = rank_sentences(source_text, terms, limit=3)
-    completion = build_inference_completion(prompt, sentences, terms)
+    inference_prompt = build_inference_prompt(prompt, sentences, terms)
+    generated = await generate_with_ollama(request.model, inference_prompt)
+    completion = (
+        str(generated.get("completion"))
+        if generated and generated.get("provider") == "ollama" and generated.get("completion")
+        else build_inference_completion(prompt, sentences, terms)
+    )
     return {
         "model": request.model,
+        "provider": generated.get("provider") if generated else "local-fallback",
         "status": "completed",
         "paymentIdentifier": request.paymentIdentifier,
         "completion": completion,
@@ -390,6 +451,10 @@ async def complete_inference(request: InferenceRequest) -> dict[str, object]:
             "inputCharacters": len(prompt),
             "contextCharacters": len(context_text),
             "outputCharacters": len(completion),
+        },
+        "metadata": {
+            "ollama": generated.get("raw") if generated and generated.get("provider") == "ollama" else None,
+            "fallbackReason": generated.get("error") if generated and generated.get("provider") == "local-fallback" else None,
         },
     }
 
