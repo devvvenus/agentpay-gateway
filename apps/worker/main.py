@@ -1,8 +1,8 @@
+import asyncio
 import os
 import math
 import re
 import json
-import subprocess
 from collections import Counter
 from typing import Any
 from urllib.parse import urlparse
@@ -470,32 +470,44 @@ async def pay_resource(request: Request, payer_request: PayerRequest) -> dict[st
         "--output",
         "json",
     ]
+    process = None
     try:
-        completed = subprocess.run(command, capture_output=True, text=True, timeout=120, check=False)
+        process = await asyncio.create_subprocess_exec(
+            *command,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout_bytes, stderr_bytes = await asyncio.wait_for(process.communicate(), timeout=120)
+        stdout = stdout_bytes.decode("utf-8", errors="replace")
+        stderr = stderr_bytes.decode("utf-8", errors="replace")
+        returncode = process.returncode
     except FileNotFoundError:
         raise HTTPException(
             status_code=503,
             detail="Circle CLI is not installed in the payer runtime. Rebuild the worker image with Circle CLI support.",
         )
-    except subprocess.TimeoutExpired:
+    except asyncio.TimeoutError:
+        if process:
+            process.kill()
+            await process.wait()
         raise HTTPException(status_code=504, detail="Circle payment command timed out")
 
-    if completed.returncode != 0:
+    if returncode != 0:
         raise HTTPException(
             status_code=502,
             detail={
                 "error": "Circle payment command failed",
-                "stderr": completed.stderr[-1200:],
-                "stdout": completed.stdout[-1200:],
+                "stderr": stderr[-1200:],
+                "stdout": stdout[-1200:],
             },
         )
 
     try:
-        parsed = json.loads(completed.stdout)
+        parsed = json.loads(stdout)
     except json.JSONDecodeError as error:
         raise HTTPException(
             status_code=502,
-            detail={"error": "Circle CLI returned non-JSON output", "message": str(error), "stdout": completed.stdout[-1200:]},
+            detail={"error": "Circle CLI returned non-JSON output", "message": str(error), "stdout": stdout[-1200:]},
         )
 
     data = parsed.get("data") if isinstance(parsed, dict) else None
