@@ -559,7 +559,7 @@ function assertAllowedUrl(rawUrl: string, allowedHosts: string[]): void {
 
 async function fetchWithTimeout(url: string, init?: RequestInit): Promise<Response> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 12_000);
+  const timeout = setTimeout(() => controller.abort(), 30_000);
   try {
     const response = await fetch(url, { ...init, signal: controller.signal });
     if (!response.ok) {

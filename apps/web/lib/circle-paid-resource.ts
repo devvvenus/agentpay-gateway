@@ -90,7 +90,7 @@ async function executeViaRemotePayer(input: {
     detail?: string;
   };
   if (!response.ok) {
-    throw new Error(parsed.error || parsed.detail || `Remote Circle payer failed with HTTP ${response.status}`);
+    throw new Error(formatRemotePayerError(parsed.error || parsed.detail, response.status));
   }
   if (!parsed.payment || !parsed.result) {
     throw new Error("Remote Circle payer completed without AgentPay payment/result payload");
@@ -98,6 +98,19 @@ async function executeViaRemotePayer(input: {
   return parsed.verification
     ? { payment: parsed.payment, result: parsed.result, verification: parsed.verification }
     : { payment: parsed.payment, result: parsed.result };
+}
+
+function formatRemotePayerError(error: unknown, status: number): string {
+  if (typeof error === "string" && error.trim()) return error;
+  if (error && typeof error === "object") {
+    const detail = error as { error?: unknown; message?: unknown; stderr?: unknown; stdout?: unknown };
+    const parts = [detail.error, detail.message, detail.stderr, detail.stdout]
+      .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+      .map((value) => value.trim());
+    if (parts.length) return parts.join(" | ");
+    return JSON.stringify(error);
+  }
+  return `Remote Circle payer failed with HTTP ${status}`;
 }
 
 async function execCircle(args: string[]) {
