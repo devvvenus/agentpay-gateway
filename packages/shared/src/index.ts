@@ -91,6 +91,7 @@ export interface PaymentEvent {
 
 export interface PaymentChallenge {
   status: 402;
+  x402Version: number;
   resourceId: string;
   adapterType: AdapterType;
   accepts: Array<{

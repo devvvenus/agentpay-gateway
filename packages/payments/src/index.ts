@@ -98,6 +98,7 @@ export class PaymentService {
     const payTo = provider?.walletAddress ?? this.config.sellerAddress;
     return {
       status: 402,
+      x402Version: 2,
       resourceId: resource.id,
       adapterType: resource.adapterType,
       accepts: [
@@ -345,7 +346,9 @@ async function verifyCircleGatewaySettlement(input: {
 }): Promise<SettlementVerificationResult> {
   try {
     const { BatchFacilitatorClient } = await import("@circle-fin/x402-batching/server");
-    const paymentPayload = JSON.parse(Buffer.from(input.paymentHeader, "base64").toString("utf8")) as CirclePaymentPayload;
+    const paymentPayload = normalizeCirclePaymentPayload(
+      JSON.parse(Buffer.from(input.paymentHeader, "base64").toString("utf8")) as Partial<CirclePaymentPayload>
+    );
     const requirements = buildCircleGatewayRequirements(input.resource, input.provider, input.network);
     const facilitator = new BatchFacilitatorClient();
     const verifyResult = await facilitator.verify(paymentPayload, requirements);
@@ -399,6 +402,19 @@ function buildCircleGatewayRequirements(resource: Resource, provider: Provider, 
       version: "1",
       verifyingContract: ARC_TESTNET_GATEWAY_WALLET
     }
+  };
+}
+
+function normalizeCirclePaymentPayload(payload: Partial<CirclePaymentPayload>): CirclePaymentPayload {
+  if (!payload.payload) {
+    throw new Error("Circle payment payload is missing payload");
+  }
+  return {
+    x402Version: typeof payload.x402Version === "number" ? payload.x402Version : 2,
+    ...(payload.resource ? { resource: payload.resource } : {}),
+    ...(payload.accepted ? { accepted: payload.accepted } : {}),
+    payload: payload.payload,
+    ...(payload.extensions ? { extensions: payload.extensions } : {})
   };
 }
 
