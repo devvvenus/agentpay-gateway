@@ -5,7 +5,9 @@ Use this file as the final pre-submission evidence list. Do not mark an item com
 ## Runtime URLs
 
 - Web app URL:
-- Worker URL:
+- Worker URL: `http://49.13.60.236:8010`
+- Datasette URL: `http://49.13.60.236:8011`
+- SearXNG URL: `http://49.13.60.236:8012`
 - Public repository URL:
 - Supabase project reference:
 
@@ -39,6 +41,7 @@ Use this file as the final pre-submission evidence list. Do not mark an item com
 - Signed webhook request updating an existing payment identifier.
 - Dashboard refresh/restart showing persisted state from Supabase.
 - `pnpm typecheck`, `pnpm test`, `pnpm smoke`, `pnpm smoke:upstreams`, `pnpm build` output.
+- `pnpm smoke:upstreams` against the VPS upstreams passed on 2026-06-16.
 
 ## Three-Minute Recording Structure
 
