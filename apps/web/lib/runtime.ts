@@ -57,8 +57,14 @@ export function verifyWebhookRequest(rawBody: string, request: Request): Respons
 }
 
 async function createStore(): Promise<AgentPayStore> {
-  const snapshot = (await readSupabaseSnapshot()) ?? readStateSnapshot();
-  const store = new AgentPayStore(seedData(), snapshot, writeStateSnapshot);
+  const hasSupabaseRuntime = Boolean(supabaseRuntimeClient());
+  const snapshot = hasSupabaseRuntime ? await readSupabaseSnapshot() : readStateSnapshot();
+  const persistSnapshot = hasSupabaseRuntime
+    ? (nextSnapshot: StoreSnapshot) => {
+        void writeSupabaseSnapshot(nextSnapshot);
+      }
+    : writeStateSnapshot;
+  const store = new AgentPayStore(seedData(), snapshot, persistSnapshot);
   globalThis.__agentpayStore = store;
   return store;
 }
