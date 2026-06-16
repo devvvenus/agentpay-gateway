@@ -4,6 +4,7 @@ import math
 import re
 import json
 from collections import Counter
+from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import urlparse
 
@@ -572,7 +573,7 @@ async def wallet_status(request: Request, status_request: WalletStatusRequest) -
         ],
         timeout=30,
     )
-    checked_at = now()
+    checked_at = datetime.now(UTC).isoformat()
     wallet_data = wallet.get("data") if isinstance(wallet, dict) else {}
     wallet_balances = wallet_data.get("balances", []) if isinstance(wallet_data, dict) else []
     usdc = next(
