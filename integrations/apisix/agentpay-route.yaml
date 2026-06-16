@@ -1,0 +1,12 @@
+routes:
+  - id: agentpay-paid-api-proxy
+    uri: /paid/*
+    upstream:
+      type: roundrobin
+      nodes:
+        "host.docker.internal:3000": 1
+    plugins:
+      proxy-rewrite:
+        regex_uri:
+          - "^/paid/(.*)"
+          - "/api/pay/$1"

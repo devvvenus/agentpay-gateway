@@ -1,0 +1,30 @@
+services:
+  worker:
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    environment:
+      - AGENTPAY_ALLOWED_HOSTS=localhost,127.0.0.1,docs.arc.io,developers.circle.com,docs.x402.org,lepton.thecanteenapp.com,www.arc.network,arc.network
+    ports:
+      - "8000:8000"
+
+  datasette:
+    image: datasetteproject/datasette:latest
+    command:
+      - sh
+      - -c
+      - |
+        python -c "import sqlite3; db='/data/demo.sqlite'; con=sqlite3.connect(db); con.execute('create table if not exists demo_metrics (id integer primary key, metric text not null, value real not null)'); con.execute('delete from demo_metrics'); con.executemany('insert into demo_metrics(metric,value) values (?,?)', [('adapter_count',10),('target_budget_usdc',0.05),('judging_circle_tools_percent',20),('judging_traction_percent',30)]); con.commit(); con.close()" && datasette -h 0.0.0.0 -p 8001 /data/demo.sqlite --cors
+    volumes:
+      - ./fixtures/datasette:/data
+    ports:
+      - "8001:8001"
+
+  searxng:
+    image: searxng/searxng:latest
+    environment:
+      - SEARXNG_BASE_URL=http://localhost:8080/
+    volumes:
+      - ./integrations/searxng/settings.yml:/etc/searxng/settings.yml:ro
+    ports:
+      - "8080:8080"

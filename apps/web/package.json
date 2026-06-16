@@ -1,0 +1,26 @@
+{
+  "name": "@agentpay/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@agentpay/adapters": "workspace:*",
+    "@agentpay/agent": "workspace:*",
+    "@agentpay/db": "workspace:*",
+    "@agentpay/payments": "workspace:*",
+    "@agentpay/shared": "workspace:*",
+    "next": "latest",
+    "react": "latest",
+    "react-dom": "latest"
+  },
+  "devDependencies": {
+    "@types/react": "latest",
+    "@types/react-dom": "latest"
+  }
+}

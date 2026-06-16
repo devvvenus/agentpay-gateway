@@ -1,0 +1,33 @@
+{
+  "name": "agentpay-gateway",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.33.2",
+  "scripts": {
+    "dev": "pnpm --filter @agentpay/web dev",
+    "build": "pnpm --filter @agentpay/shared build && pnpm --filter @agentpay/db build && pnpm --filter @agentpay/payments build && pnpm --filter @agentpay/adapters build && pnpm --filter @agentpay/agent build && pnpm --filter @agentpay/sdk build && pnpm --filter @agentpay/web build",
+    "typecheck": "pnpm --filter @agentpay/shared typecheck && pnpm --filter @agentpay/db typecheck && pnpm --filter @agentpay/payments typecheck && pnpm --filter @agentpay/adapters typecheck && pnpm --filter @agentpay/agent typecheck && pnpm --filter @agentpay/sdk typecheck && pnpm --filter @agentpay/web typecheck",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "worker:dev": "python -m uvicorn apps.worker.main:app --reload --port 8000",
+    "dataset:prepare": "node scripts/create-demo-sqlite.mjs",
+    "agent:demo": "tsx scripts/run-agent-demo.ts",
+    "smoke": "tsx scripts/smoke.ts",
+    "smoke:upstreams": "tsx scripts/smoke-upstreams.ts"
+  },
+  "dependencies": {
+    "@agentpay/adapters": "workspace:*",
+    "@agentpay/agent": "workspace:*",
+    "@agentpay/db": "workspace:*",
+    "@agentpay/payments": "workspace:*",
+    "@agentpay/shared": "workspace:*",
+    "@agentpay/sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "tsx": "latest",
+    "typescript": "latest",
+    "vitest": "latest"
+  }
+}
