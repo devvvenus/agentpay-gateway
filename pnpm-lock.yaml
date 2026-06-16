@@ -120,7 +120,13 @@ importers:
         version: link:../shared
       '@circle-fin/x402-batching':
         specifier: ^2.1.0
-        version: 2.1.0(@x402/core@2.15.0)(viem@2.52.2(typescript@6.0.3)(zod@3.25.76))
+        version: 2.1.0(@x402/core@2.15.0)(@x402/evm@2.15.0(typescript@6.0.3))(viem@2.52.2(typescript@6.0.3)(zod@3.25.76))
+      '@x402/core':
+        specifier: ^2.15.0
+        version: 2.15.0
+      '@x402/evm':
+        specifier: ^2.15.0
+        version: 2.15.0(typescript@6.0.3)
 
   packages/sdk:
     dependencies:
@@ -714,6 +720,9 @@ packages:
   '@x402/core@2.15.0':
     resolution: {integrity: sha512-Hwop1cu80sf3H4dpNdiMJt7ay30Jf7JUjgx7dXHxQm/nYqOjTcm71FC/ZhpnIpeg6RSAUt7EI/rFTXx/lafHhw==}
 
+  '@x402/evm@2.15.0':
+    resolution: {integrity: sha512-HfFbGGL4SpAeAzfvai9oz8cyfPzyWQFSO5hNDwSaGQYoOx8ZTmTobo5YxuXH7gazci13JruFRmjobtvlbQu5WA==}
+
   abitype@1.2.3:
     resolution: {integrity: sha512-Ofer5QUnuUdTFsBRwARMoWKOH1ND5ehwYhJ3OJ/BQO+StkwQjHw0XyVh4vDttzHB7QOFhPHa/o413PJ82gU/Tg==}
     peerDependencies:
@@ -1123,10 +1132,12 @@ snapshots:
 
   '@adraffy/ens-normalize@1.11.1': {}
 
-  '@circle-fin/x402-batching@2.1.0(@x402/core@2.15.0)(viem@2.52.2(typescript@6.0.3)(zod@3.25.76))':
+  '@circle-fin/x402-batching@2.1.0(@x402/core@2.15.0)(@x402/evm@2.15.0(typescript@6.0.3))(viem@2.52.2(typescript@6.0.3)(zod@3.25.76))':
     dependencies:
       '@x402/core': 2.15.0
       viem: 2.52.2(typescript@6.0.3)(zod@3.25.76)
+    optionalDependencies:
+      '@x402/evm': 2.15.0(typescript@6.0.3)
 
   '@emnapi/core@1.10.0':
     dependencies:
@@ -1509,6 +1520,16 @@ snapshots:
   '@x402/core@2.15.0':
     dependencies:
       zod: 3.25.76
+
+  '@x402/evm@2.15.0(typescript@6.0.3)':
+    dependencies:
+      '@x402/core': 2.15.0
+      viem: 2.52.2(typescript@6.0.3)(zod@3.25.76)
+      zod: 3.25.76
+    transitivePeerDependencies:
+      - bufferutil
+      - typescript
+      - utf-8-validate
 
   abitype@1.2.3(typescript@6.0.3)(zod@3.25.76):
     optionalDependencies:
