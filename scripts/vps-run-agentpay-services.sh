@@ -14,6 +14,8 @@ PY
 fi
 
 mkdir -p "$ROOT_DIR/fixtures/datasette"
+mkdir -p "$ROOT_DIR/circle-home"
+chmod 700 "$ROOT_DIR/circle-home"
 python3 - <<'PY'
 import sqlite3
 from pathlib import Path
@@ -49,7 +51,9 @@ docker run -d \
   --restart unless-stopped \
   -p 8010:8000 \
   --env-file "$ROOT_DIR/.env.vps" \
+  -e CIRCLE_ACCEPT_TERMS=1 \
   -e AGENTPAY_ALLOWED_HOSTS=localhost,127.0.0.1,docs.arc.io,developers.circle.com,docs.x402.org,lepton.thecanteenapp.com,www.arc.network,arc.network,agentpay-gateway.vercel.app \
+  -v "$ROOT_DIR/circle-home:/root" \
   agentpay-worker:latest >/dev/null
 
 docker run -d \
