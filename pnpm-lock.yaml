@@ -30,6 +30,15 @@ importers:
       '@types/node':
         specifier: latest
         version: 25.9.2
+      next:
+        specifier: latest
+        version: 16.2.9(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      react:
+        specifier: latest
+        version: 19.2.7
+      react-dom:
+        specifier: latest
+        version: 19.2.7(react@19.2.7)
       tsx:
         specifier: latest
         version: 4.22.4

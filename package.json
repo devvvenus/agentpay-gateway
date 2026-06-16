@@ -26,6 +26,9 @@
   },
   "devDependencies": {
     "@types/node": "latest",
+    "next": "latest",
+    "react": "latest",
+    "react-dom": "latest",
     "tsx": "latest",
     "typescript": "latest",
     "vitest": "latest"
