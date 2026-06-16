@@ -63,11 +63,29 @@ async function execCircle(args: string[]) {
         ]
       : args;
 
-  return execFileAsync(command, commandArgs, {
-    timeout: 120_000,
-    windowsHide: true,
-    maxBuffer: 1024 * 1024 * 4
-  });
+  try {
+    return await execFileAsync(command, commandArgs, {
+      timeout: 120_000,
+      windowsHide: true,
+      maxBuffer: 1024 * 1024 * 4
+    });
+  } catch (error) {
+    if (isMissingCircleCli(error)) {
+      throw new Error(
+        "Circle CLI is required for server-side agent payments in x402 mode. Run this path on a Circle-authenticated runtime or replace it with a Circle API-backed payer."
+      );
+    }
+    throw error;
+  }
+}
+
+function isMissingCircleCli(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: unknown }).code === "ENOENT"
+  );
 }
 
 function quotePowerShellArg(value: string): string {

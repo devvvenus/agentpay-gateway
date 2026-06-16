@@ -4,12 +4,18 @@ Use this file as the final pre-submission evidence list. Do not mark an item com
 
 ## Runtime URLs
 
-- Web app URL:
+- Web app URL: `https://agentpay-gateway.vercel.app`
 - Worker URL: `http://49.13.60.236:8010`
 - Datasette URL: `http://49.13.60.236:8011`
 - SearXNG URL: `http://49.13.60.236:8012`
-- Public repository URL:
-- Supabase project reference:
+- Public repository URL: `https://github.com/kaos35/agentpay-gateway`
+- Supabase project reference: `ppydekkmamrylhyngvys`
+
+## Deployment Notes
+
+- Vercel production deploy is live for the dashboard and Next.js API routes.
+- VPS upstream adapters are live for worker-backed crawl, MCP, delegation, memory, inference, RSS paywall, Datasette and SearXNG calls.
+- Server-side agent payments currently require a Circle CLI-authenticated runtime. Vercel serverless does not include the local Circle CLI session, so the final payer execution path must run on a Circle-authenticated backend or be replaced with a Circle API-backed payer before a judge-facing full paid run.
 
 ## Required Environment
 
