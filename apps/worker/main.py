@@ -1,13 +1,15 @@
 import os
 import math
 import re
+import json
+import subprocess
 from collections import Counter
 from typing import Any
 from urllib.parse import urlparse
 
 import httpx
 from bs4 import BeautifulSoup
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel, HttpUrl
 
 app = FastAPI(title="AgentPay Crawl Worker", version="0.1.0")
@@ -49,6 +51,13 @@ class McpRequest(BaseModel):
     params: dict[str, Any] = {}
 
 
+class PayerRequest(BaseModel):
+    targetUrl: HttpUrl
+    buyerAddress: str
+    chain: str = "ARC-TESTNET"
+    maxAmount: str = "0.01"
+
+
 def allowed_hosts() -> set[str]:
     raw = os.getenv(
         "AGENTPAY_ALLOWED_HOSTS",
@@ -64,6 +73,15 @@ def assert_allowed(url: str) -> None:
         raise HTTPException(status_code=400, detail="Unsupported URL protocol")
     if not any(host == allowed or host.endswith(f".{allowed}") for allowed in allowed_hosts()):
         raise HTTPException(status_code=403, detail=f"Blocked upstream host: {host}")
+
+
+def require_payer_auth(request: Request) -> None:
+    secret = os.getenv("AGENTPAY_PAYER_API_KEY", "").strip()
+    if not secret:
+        raise HTTPException(status_code=503, detail="AGENTPAY_PAYER_API_KEY is required for the payer endpoint")
+    provided = request.headers.get("x-agentpay-payer-key", "")
+    if provided != secret:
+        raise HTTPException(status_code=401, detail="Invalid payer key")
 
 
 STOPWORDS = {
@@ -429,6 +447,74 @@ async def mcp(request: McpRequest) -> dict[str, object]:
         "jsonrpc": request.jsonrpc,
         "id": request.id,
         "result": result,
+    }
+
+
+@app.post("/payer/pay-resource")
+async def pay_resource(request: Request, payer_request: PayerRequest) -> dict[str, object]:
+    require_payer_auth(request)
+    target_url = str(payer_request.targetUrl)
+    assert_allowed(target_url)
+
+    command = [
+        "circle",
+        "services",
+        "pay",
+        target_url,
+        "--address",
+        payer_request.buyerAddress,
+        "--chain",
+        payer_request.chain,
+        "--max-amount",
+        payer_request.maxAmount,
+        "--output",
+        "json",
+    ]
+    try:
+        completed = subprocess.run(command, capture_output=True, text=True, timeout=120, check=False)
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=503,
+            detail="Circle CLI is not installed in the payer runtime. Rebuild the worker image with Circle CLI support.",
+        )
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=504, detail="Circle payment command timed out")
+
+    if completed.returncode != 0:
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "error": "Circle payment command failed",
+                "stderr": completed.stderr[-1200:],
+                "stdout": completed.stdout[-1200:],
+            },
+        )
+
+    try:
+        parsed = json.loads(completed.stdout)
+    except json.JSONDecodeError as error:
+        raise HTTPException(
+            status_code=502,
+            detail={"error": "Circle CLI returned non-JSON output", "message": str(error), "stdout": completed.stdout[-1200:]},
+        )
+
+    data = parsed.get("data") if isinstance(parsed, dict) else None
+    response = data.get("response") if isinstance(data, dict) else None
+    payment = response.get("payment") if isinstance(response, dict) else None
+    result = response.get("result") if isinstance(response, dict) else None
+    if not payment or not result:
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "error": "Circle payment completed without AgentPay payment/result payload",
+                "circleResponseKeys": list(parsed.keys()) if isinstance(parsed, dict) else [],
+            },
+        )
+
+    return {
+        "payment": payment,
+        "result": result,
+        "verification": data.get("payment") if isinstance(data, dict) else None,
     }
 
 

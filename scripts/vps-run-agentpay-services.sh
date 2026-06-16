@@ -4,6 +4,15 @@ set -euo pipefail
 ROOT_DIR="${1:-/opt/agentpay-gateway}"
 cd "$ROOT_DIR"
 
+if [[ ! -f "$ROOT_DIR/.env.vps" ]]; then
+  python3 - <<'PY' > "$ROOT_DIR/.env.vps"
+import secrets
+
+print(f"AGENTPAY_PAYER_API_KEY={secrets.token_urlsafe(48)}")
+PY
+  chmod 600 "$ROOT_DIR/.env.vps"
+fi
+
 mkdir -p "$ROOT_DIR/fixtures/datasette"
 python3 - <<'PY'
 import sqlite3
@@ -39,7 +48,8 @@ docker run -d \
   --name agentpay-worker \
   --restart unless-stopped \
   -p 8010:8000 \
-  -e AGENTPAY_ALLOWED_HOSTS=localhost,127.0.0.1,docs.arc.io,developers.circle.com,docs.x402.org,lepton.thecanteenapp.com,www.arc.network,arc.network \
+  --env-file "$ROOT_DIR/.env.vps" \
+  -e AGENTPAY_ALLOWED_HOSTS=localhost,127.0.0.1,docs.arc.io,developers.circle.com,docs.x402.org,lepton.thecanteenapp.com,www.arc.network,arc.network,agentpay-gateway.vercel.app \
   agentpay-worker:latest >/dev/null
 
 docker run -d \

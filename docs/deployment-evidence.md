@@ -16,6 +16,7 @@ Use this file as the final pre-submission evidence list. Do not mark an item com
 - Vercel production deploy is live for the dashboard and Next.js API routes.
 - VPS upstream adapters are live for worker-backed crawl, MCP, delegation, memory, inference, RSS paywall, Datasette and SearXNG calls.
 - Server-side agent payments currently require a Circle CLI-authenticated runtime. Vercel serverless does not include the local Circle CLI session, so the final payer execution path must run on a Circle-authenticated backend or be replaced with a Circle API-backed payer before a judge-facing full paid run.
+- The VPS payer endpoint is `/payer/pay-resource`. Vercel should set `AGENTPAY_PAYER_URL=http://49.13.60.236:8010/payer/pay-resource` and the same `AGENTPAY_PAYER_API_KEY` as the worker container. The worker container must be Circle CLI-authenticated with an Arc testnet agent wallet.
 
 ## Required Environment
 
@@ -33,6 +34,8 @@ Use this file as the final pre-submission evidence list. Do not mark an item com
 - `AGENTPAY_ADMIN_API_KEY`
 - `AGENTPAY_WEBHOOK_SECRET` or `CIRCLE_WEBHOOK_SECRET`
 - `AGENTPAY_WORKER_URL`
+- `AGENTPAY_PAYER_URL`
+- `AGENTPAY_PAYER_API_KEY`
 - `DATASETTE_BASE_URL`
 - `SEARXNG_BASE_URL`
 
