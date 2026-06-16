@@ -50,6 +50,23 @@ export async function GET() {
   const config = loadPaymentConfig();
   const address = config.buyerAddress;
   const chain = "ARC-TESTNET";
+  const remote = await getRemoteWalletStatus(address, chain);
+  if (remote) {
+    return Response.json({
+      address,
+      chain,
+      network: config.network,
+      paymentMode: config.mode,
+      asset: {
+        symbol: "USDC",
+        address: ARC_TESTNET_USDC_ADDRESS,
+        decimals: 6
+      },
+      ...remote,
+      source: "Circle CLI live check via VPS payer"
+    });
+  }
+
   const [walletBalance, gatewayBalance] = await Promise.all([
     runCircleJson<WalletBalanceJson>([
       "wallet",
@@ -88,6 +105,33 @@ export async function GET() {
     gatewayBalance: normalizeGatewayBalance(gatewayBalance),
     source: "Circle CLI live check"
   });
+}
+
+async function getRemoteWalletStatus(address: string, chain: string) {
+  if (!process.env.AGENTPAY_PAYER_URL) return null;
+  const url = new URL("/payer/wallet-status", process.env.AGENTPAY_PAYER_URL);
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...(process.env.AGENTPAY_PAYER_API_KEY ? { "x-agentpay-payer-key": process.env.AGENTPAY_PAYER_API_KEY } : {})
+      },
+      body: JSON.stringify({
+        buyerAddress: address,
+        chain
+      })
+    });
+    if (!response.ok) return null;
+    const parsed = (await response.json()) as {
+      walletBalance?: unknown;
+      gatewayBalance?: unknown;
+    };
+    if (!parsed.walletBalance || !parsed.gatewayBalance) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
 }
 
 async function runCircleJson<T>(args: string[]): Promise<CliResult<T>> {

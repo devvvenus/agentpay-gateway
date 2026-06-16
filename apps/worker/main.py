@@ -58,6 +58,11 @@ class PayerRequest(BaseModel):
     maxAmount: str = "0.01"
 
 
+class WalletStatusRequest(BaseModel):
+    buyerAddress: str
+    chain: str = "ARC-TESTNET"
+
+
 def allowed_hosts() -> set[str]:
     raw = os.getenv(
         "AGENTPAY_ALLOWED_HOSTS",
@@ -82,6 +87,47 @@ def require_payer_auth(request: Request) -> None:
     provided = request.headers.get("x-agentpay-payer-key", "")
     if provided != secret:
         raise HTTPException(status_code=401, detail="Invalid payer key")
+
+
+async def run_circle_json(command: list[str], timeout: int = 120) -> dict[str, Any]:
+    process = None
+    try:
+        process = await asyncio.create_subprocess_exec(
+            *command,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout_bytes, stderr_bytes = await asyncio.wait_for(process.communicate(), timeout=timeout)
+        stdout = stdout_bytes.decode("utf-8", errors="replace")
+        stderr = stderr_bytes.decode("utf-8", errors="replace")
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=503,
+            detail="Circle CLI is not installed in the payer runtime. Rebuild the worker image with Circle CLI support.",
+        )
+    except asyncio.TimeoutError:
+        if process:
+            process.kill()
+            await process.wait()
+        raise HTTPException(status_code=504, detail="Circle command timed out")
+
+    if process.returncode != 0:
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "error": "Circle command failed",
+                "stderr": stderr[-1200:],
+                "stdout": stdout[-1200:],
+            },
+        )
+
+    try:
+        return json.loads(stdout)
+    except json.JSONDecodeError as error:
+        raise HTTPException(
+            status_code=502,
+            detail={"error": "Circle CLI returned non-JSON output", "message": str(error), "stdout": stdout[-1200:]},
+        )
 
 
 STOPWORDS = {
@@ -470,45 +516,7 @@ async def pay_resource(request: Request, payer_request: PayerRequest) -> dict[st
         "--output",
         "json",
     ]
-    process = None
-    try:
-        process = await asyncio.create_subprocess_exec(
-            *command,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        stdout_bytes, stderr_bytes = await asyncio.wait_for(process.communicate(), timeout=120)
-        stdout = stdout_bytes.decode("utf-8", errors="replace")
-        stderr = stderr_bytes.decode("utf-8", errors="replace")
-        returncode = process.returncode
-    except FileNotFoundError:
-        raise HTTPException(
-            status_code=503,
-            detail="Circle CLI is not installed in the payer runtime. Rebuild the worker image with Circle CLI support.",
-        )
-    except asyncio.TimeoutError:
-        if process:
-            process.kill()
-            await process.wait()
-        raise HTTPException(status_code=504, detail="Circle payment command timed out")
-
-    if returncode != 0:
-        raise HTTPException(
-            status_code=502,
-            detail={
-                "error": "Circle payment command failed",
-                "stderr": stderr[-1200:],
-                "stdout": stdout[-1200:],
-            },
-        )
-
-    try:
-        parsed = json.loads(stdout)
-    except json.JSONDecodeError as error:
-        raise HTTPException(
-            status_code=502,
-            detail={"error": "Circle CLI returned non-JSON output", "message": str(error), "stdout": stdout[-1200:]},
-        )
+    parsed = await run_circle_json(command)
 
     data = parsed.get("data") if isinstance(parsed, dict) else None
     response = data.get("response") if isinstance(data, dict) else None
@@ -527,6 +535,83 @@ async def pay_resource(request: Request, payer_request: PayerRequest) -> dict[st
         "payment": payment,
         "result": result,
         "verification": data.get("payment") if isinstance(data, dict) else None,
+    }
+
+
+@app.post("/payer/wallet-status")
+async def wallet_status(request: Request, status_request: WalletStatusRequest) -> dict[str, object]:
+    require_payer_auth(request)
+    address = status_request.buyerAddress
+    chain = status_request.chain
+    wallet = await run_circle_json(
+        [
+            "circle",
+            "wallet",
+            "balance",
+            "--address",
+            address,
+            "--chain",
+            chain,
+            "--output",
+            "json",
+        ],
+        timeout=30,
+    )
+    gateway = await run_circle_json(
+        [
+            "circle",
+            "gateway",
+            "balance",
+            "--address",
+            address,
+            "--chain",
+            chain,
+            "--all",
+            "--output",
+            "json",
+        ],
+        timeout=30,
+    )
+    checked_at = now()
+    wallet_data = wallet.get("data") if isinstance(wallet, dict) else {}
+    wallet_balances = wallet_data.get("balances", []) if isinstance(wallet_data, dict) else []
+    usdc = next(
+        (
+            item
+            for item in wallet_balances
+            if isinstance(item, dict)
+            and isinstance(item.get("token"), dict)
+            and item["token"].get("symbol") == "USDC"
+            and item["token"].get("isNative") is False
+        ),
+        wallet_balances[0] if wallet_balances else {},
+    )
+    token = usdc.get("token") if isinstance(usdc, dict) and isinstance(usdc.get("token"), dict) else {}
+    gateway_data = gateway.get("data") if isinstance(gateway, dict) else {}
+    gateway_balances = gateway_data.get("balances", []) if isinstance(gateway_data, dict) else []
+    arc_gateway = next(
+        (item for item in gateway_balances if isinstance(item, dict) and item.get("network") == "Arc Testnet"),
+        {},
+    )
+
+    return {
+        "walletBalance": {
+            "ok": True,
+            "checkedAt": checked_at,
+            "amount": str(usdc.get("amount", "0")) if isinstance(usdc, dict) else "0",
+            "token": token.get("symbol", "USDC") if isinstance(token, dict) else "USDC",
+            "tokenAddress": token.get("tokenAddress") if isinstance(token, dict) else None,
+        },
+        "gatewayBalance": {
+            "ok": True,
+            "checkedAt": checked_at,
+            "amount": str(arc_gateway.get("balance", gateway_data.get("total", "0")))
+            if isinstance(arc_gateway, dict)
+            else "0",
+            "total": str(gateway_data.get("total", "0")) if isinstance(gateway_data, dict) else "0",
+            "token": gateway_data.get("token", "USDC") if isinstance(gateway_data, dict) else "USDC",
+            "backingEOA": gateway_data.get("backingEOA") if isinstance(gateway_data, dict) else None,
+        },
     }
 
 
