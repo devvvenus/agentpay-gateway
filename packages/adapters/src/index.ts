@@ -3,6 +3,7 @@ import {
   type AdapterInput,
   type AdapterResult,
   type AdapterType,
+  type AccessClass,
   type Citation,
   type PaidExecutionContext,
   type Provider,
@@ -19,7 +20,7 @@ export interface PaidResourceAdapter {
   execute(input: AdapterInput, context: PaidExecutionContext): Promise<AdapterResult>;
 }
 
-const LOCAL_FALLBACK_PROVIDER_WALLETS = [
+const LOCAL_DEV_PROVIDER_WALLETS = [
   "0x0000000000000000000000000000000000000001",
   "0x0000000000000000000000000000000000000002",
   "0x0000000000000000000000000000000000000003"
@@ -27,66 +28,59 @@ const LOCAL_FALLBACK_PROVIDER_WALLETS = [
 
 export const defaultProviders: Provider[] = [
   {
-    id: "provider_arc_docs",
-    name: "Arc Docs Publisher",
-    walletAddress: LOCAL_FALLBACK_PROVIDER_WALLETS[0],
+    id: "provider_publisher_content",
+    name: "Arc Publisher Content Desk",
+    walletAddress: LOCAL_DEV_PROVIDER_WALLETS[0],
     createdAt: nowIso()
   },
   {
-    id: "provider_creator_research",
-    name: "Creator Research Desk",
-    walletAddress: LOCAL_FALLBACK_PROVIDER_WALLETS[1],
+    id: "provider_api_services",
+    name: "x402 Premium API Provider",
+    walletAddress: LOCAL_DEV_PROVIDER_WALLETS[1],
     createdAt: nowIso()
   },
   {
-    id: "provider_data_tools",
-    name: "Paid Data and Tool Provider",
-    walletAddress: LOCAL_FALLBACK_PROVIDER_WALLETS[2],
+    id: "provider_agent_services",
+    name: "AgentPay Specialist Services",
+    walletAddress: LOCAL_DEV_PROVIDER_WALLETS[2],
     createdAt: nowIso()
   }
 ];
 
 export const defaultResources: Resource[] = [
-  resource("res_mcp_tools", "mcp", "Paid Agent Tool Call", "A paid MCP tool call the research agent can buy when it needs specialized work.", 0.0012, 0.72, 0.7, 0.75, "provider_data_tools"),
-  resource("res_api_proxy", "api_proxy", "Paid Publisher API", "A pay-per-request publisher/API endpoint unlocked through x402-style access.", 0.0015, 0.66, 0.65, 0.7, "provider_creator_research"),
-  resource("res_datasette", "dataset", "Paid Creator Dataset", "A creator or publisher dataset queried per task instead of sold as a subscription.", 0.002, 0.78, 0.6, 0.72, "provider_data_tools"),
-  resource("res_crawl4ai", "crawl", "Paid Article Crawl", "A paid article/source crawl converted to clean Markdown for agent research.", 0.0025, 0.82, 0.82, 0.76, "provider_creator_research"),
-  resource("res_agent_delegation", "agent_delegation", "Paid Agent-to-Agent Delegation", "A specialist agent paid to complete a small delegated research or analysis task.", 0.0022, 0.8, 0.72, 0.77, "provider_data_tools"),
-  resource("res_memory_retrieval", "memory_retrieval", "Paid Memory / Vector Retrieval", "A higher-quality memory or vector retrieval source purchased only when it improves answer confidence.", 0.0014, 0.79, 0.84, 0.76, "provider_data_tools"),
-  resource("res_inference_endpoint", "inference", "Paid Inference / Model Endpoint", "A paid model endpoint used when the task needs stronger reasoning or classification.", 0.0028, 0.81, 0.7, 0.78, "provider_data_tools"),
-  resource("res_rss_paywall", "rss_paywall", "Publisher/RSS Paywall", "A paid publisher feed or article unlock that creates a citation receipt for creator monetization.", 0.0011, 0.83, 0.86, 0.8, "provider_creator_research"),
-  resource("res_searxng", "search", "Paid Research Search", "A paid search query used only when expected value beats the query cost.", 0.001, 0.74, 0.88, 0.67, "provider_creator_research"),
-  resource("res_docs_source", "docs_source", "Paid Arc Docs Citation", "A paid source fetch that returns a citation receipt and pays the source provider.", 0.0008, 0.86, 0.8, 0.82, "provider_arc_docs")
+  resource("res_api_proxy", "premium_api", "api_proxy", "x402 Docs Premium API", "A pay-per-request API-style fetch of x402 documentation that agents can unlock through x402 instead of a shared API key.", 0.0015, 0.76, 0.7, 0.78, "provider_api_services"),
+  resource("res_mcp_tools", "mcp_tool", "mcp", "Paid MCP Source Tool", "A paid MCP server tool that fetches an allowed source URL and returns source evidence after payment.", 0.0012, 0.74, 0.72, 0.76, "provider_agent_services"),
+  resource("res_rss_paywall", "publisher_content", "rss_paywall", "Arc Publisher Article Unlock", "A paid publisher feed or article unlock that returns source evidence and a citation receipt.", 0.0011, 0.86, 0.88, 0.82, "provider_publisher_content"),
+  resource("res_agent_delegation", "agent_service", "agent_delegation", "Specialist Research Agent", "A specialist agent paid to complete a bounded procurement or research task for another agent.", 0.0022, 0.8, 0.72, 0.77, "provider_agent_services"),
+  resource("res_inference_endpoint", "usage_service", "inference", "Ollama Usage-Based Inference", "A metered local model endpoint purchased only when the task needs stronger reasoning, classification or enrichment.", 0.0028, 0.81, 0.7, 0.78, "provider_agent_services")
 ];
 
 export const defaultAdapterConfigs = createAdapterConfigs();
 
 export function createAdapterConfigs(env: NodeJS.ProcessEnv = process.env) {
-  const appUrl = env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-  const datasetteBaseUrl = env.DATASETTE_BASE_URL || env.DATASSETTE_BASE_URL || "http://localhost:8001";
-  const searxngBaseUrl = env.SEARXNG_BASE_URL || "http://localhost:8080";
   const workerUrl = env.AGENTPAY_WORKER_URL || "http://localhost:8000";
   const mcpServerUrl = env.AGENTPAY_MCP_SERVER_URL || `${workerUrl.replace(/\/$/, "")}/mcp`;
   const delegationUrl = env.AGENTPAY_DELEGATION_URL || `${workerUrl.replace(/\/$/, "")}/agent/delegate`;
-  const memoryUrl = env.AGENTPAY_MEMORY_URL || `${workerUrl.replace(/\/$/, "")}/memory/retrieve`;
   const inferenceUrl = env.AGENTPAY_INFERENCE_URL || `${workerUrl.replace(/\/$/, "")}/inference/complete`;
   const rssPaywallUrl = env.AGENTPAY_RSS_PAYWALL_URL || `${workerUrl.replace(/\/$/, "")}/rss/paywall`;
-  const publisherApiUrl = env.AGENTPAY_PUBLISHER_API_URL || "https://docs.x402.org/";
-  const docsSourceUrl = env.AGENTPAY_DOCS_SOURCE_URL || "https://docs.arc.io/";
+  const publisherApiUrl =
+    env.AGENTPAY_PUBLISHER_API_URL ||
+    `${workerUrl.replace(/\/$/, "")}/premium-api/x402-summary?sourceUrl=${encodeURIComponent("https://docs.x402.org/")}`;
 
   return [
   {
     resourceId: "res_mcp_tools",
     config: {
       serverUrl: mcpServerUrl,
+      sourceUrl: "https://docs.x402.org/",
       tools: [
         {
           name: "paid_source_fetch",
           description: "Fetch a paid source and return a citation receipt."
         },
         {
-          name: "paid_dataset_query",
-          description: "Run a paid dataset query through AgentPay."
+          name: "paid_access_status",
+          description: "Return paid access status and receipt metadata."
         }
       ]
     }
@@ -99,31 +93,9 @@ export function createAdapterConfigs(env: NodeJS.ProcessEnv = process.env) {
     }
   },
   {
-    resourceId: "res_datasette",
-    config: {
-      baseUrl: datasetteBaseUrl,
-      database: "demo",
-      sql: "select 'Arc nanopayment dataset' as topic, 10 as adapters, 0.05 as demo_budget"
-    }
-  },
-  {
-    resourceId: "res_crawl4ai",
-    config: {
-      workerUrl,
-      url: "https://developers.circle.com/gateway/nanopayments"
-    }
-  },
-  {
     resourceId: "res_agent_delegation",
     config: {
       targetUrl: delegationUrl
-    }
-  },
-  {
-    resourceId: "res_memory_retrieval",
-    config: {
-      targetUrl: memoryUrl,
-      namespace: "arc-nanopayments"
     }
   },
   {
@@ -138,21 +110,7 @@ export function createAdapterConfigs(env: NodeJS.ProcessEnv = process.env) {
     config: {
       targetUrl: rssPaywallUrl,
       feedUrl: "https://www.arc.network/blog/rss.xml",
-      fallbackUrl: "https://www.arc.network/blog/introducing-the-arc-token-whitepaper"
-    }
-  },
-  {
-    resourceId: "res_searxng",
-    config: {
-      baseUrl: searxngBaseUrl,
-      defaultQuery: "Arc Circle x402 nanopayments AI agents"
-    }
-  },
-  {
-    resourceId: "res_docs_source",
-    config: {
-      sourceUrl: docsSourceUrl,
-      title: "Arc Docs"
+      articleUrl: "https://www.arc.network/blog/introducing-the-arc-token-whitepaper"
     }
   }
   ];
@@ -176,22 +134,12 @@ export function createAdapter(type: AdapterType): PaidResourceAdapter {
       return mcpAdapter;
     case "api_proxy":
       return apiProxyAdapter;
-    case "dataset":
-      return datasetAdapter;
-    case "crawl":
-      return crawlAdapter;
     case "agent_delegation":
       return agentDelegationAdapter;
-    case "memory_retrieval":
-      return memoryRetrievalAdapter;
     case "inference":
       return inferenceAdapter;
     case "rss_paywall":
       return rssPaywallAdapter;
-    case "search":
-      return searchAdapter;
-    case "docs_source":
-      return docsSourceAdapter;
     default:
       throw new Error(`Unsupported adapter type: ${type satisfies never}`);
   }
@@ -233,7 +181,7 @@ const mcpAdapter: PaidResourceAdapter = {
       const method = toolName === "tools/list" ? "tools/list" : "tools/call";
       const response = await fetchWithTimeout(serverUrl, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: gatewayHeaders(input.resource.id, context.payment.paymentIdentifier),
         body: JSON.stringify({
           jsonrpc: "2.0",
           id: context.payment.paymentIdentifier,
@@ -248,11 +196,12 @@ const mcpAdapter: PaidResourceAdapter = {
         })
       });
       const data = await response.json();
+      const citation = citationFromMcpResult(input.resource.id, data, context.payment.paymentIdentifier, context.payment.amountUsdc);
       return ok(input, {
         serverUrl,
         method,
         data
-      });
+      }, citation ? [citation] : []);
     }
     return ok(input, {
       method: toolName,
@@ -276,7 +225,10 @@ const apiProxyAdapter: PaidResourceAdapter = {
     const targetUrl = readConfigString(input.config, "targetUrl");
     const method = readOptionalConfigString(input.config, "method") || "GET";
     assertAllowedUrl(targetUrl, context.allowedHosts);
-    const response = await fetchWithTimeout(targetUrl, { method });
+    const response = await fetchWithTimeout(targetUrl, {
+      method,
+      headers: gatewayHeaders(input.resource.id, context.payment.paymentIdentifier)
+    });
     const contentType = response.headers.get("content-type") || "";
     const data = contentType.includes("application/json") ? await response.json() : await response.text();
     return ok(input, {
@@ -285,38 +237,6 @@ const apiProxyAdapter: PaidResourceAdapter = {
       contentType,
       data: clip(data)
     });
-  }
-};
-
-const datasetAdapter: PaidResourceAdapter = {
-  type: "dataset",
-  quote: baseQuote,
-  async execute(input, context) {
-    const baseUrl = readConfigString(input.config, "baseUrl");
-    const database = readConfigString(input.config, "database") || "demo";
-    const sql = readString(input.payload, "sql") || readConfigString(input.config, "sql");
-    const url = `${baseUrl.replace(/\/$/, "")}/${encodeURIComponent(database)}.json?sql=${encodeURIComponent(sql)}&_shape=array`;
-    assertAllowedUrl(url, context.allowedHosts);
-    const response = await fetchWithTimeout(url);
-    const data = await response.json();
-    return ok(input, { url, rows: data });
-  }
-};
-
-const crawlAdapter: PaidResourceAdapter = {
-  type: "crawl",
-  quote: baseQuote,
-  async execute(input, context) {
-    const workerUrl = readConfigString(input.config, "workerUrl");
-    const url = readString(input.payload, "url") || readConfigString(input.config, "url");
-    assertAllowedUrl(workerUrl, context.allowedHosts);
-    assertAllowedUrl(url, context.allowedHosts);
-    const response = await fetchWithTimeout(`${workerUrl.replace(/\/$/, "")}/crawl`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ url })
-    });
-    return ok(input, await response.json());
   }
 };
 
@@ -329,31 +249,10 @@ const agentDelegationAdapter: PaidResourceAdapter = {
     assertAllowedUrl(targetUrl, context.allowedHosts);
     const response = await fetchWithTimeout(targetUrl, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: gatewayHeaders(input.resource.id, context.payment.paymentIdentifier),
       body: JSON.stringify({
         prompt,
         payload: input.payload,
-        paymentIdentifier: context.payment.paymentIdentifier
-      })
-    });
-    const data = await response.json().catch(async () => ({ text: await response.text() }));
-    return ok(input, { status: response.status, data });
-  }
-};
-
-const memoryRetrievalAdapter: PaidResourceAdapter = {
-  type: "memory_retrieval",
-  quote: baseQuote,
-  async execute(input, context) {
-    const targetUrl = readConfigString(input.config, "targetUrl");
-    const namespace = readConfigString(input.config, "namespace") || "agentpay";
-    assertAllowedUrl(targetUrl, context.allowedHosts);
-    const response = await fetchWithTimeout(targetUrl, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        query: readString(input.payload, "query") || input.prompt || "Arc nanopayments",
-        namespace,
         paymentIdentifier: context.payment.paymentIdentifier
       })
     });
@@ -372,7 +271,7 @@ const inferenceAdapter: PaidResourceAdapter = {
     assertAllowedUrl(targetUrl, context.allowedHosts);
     const response = await fetchWithTimeout(targetUrl, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: gatewayHeaders(input.resource.id, context.payment.paymentIdentifier),
       body: JSON.stringify({
         prompt,
         model,
@@ -390,16 +289,16 @@ const rssPaywallAdapter: PaidResourceAdapter = {
   async execute(input, context) {
     const targetUrl = readConfigString(input.config, "targetUrl");
     const feedUrl = readString(input.payload, "feedUrl") || readConfigString(input.config, "feedUrl");
-    const fallbackUrl = readConfigString(input.config, "fallbackUrl");
+    const articleUrl = readConfigString(input.config, "articleUrl");
     assertAllowedUrl(targetUrl, context.allowedHosts);
     assertAllowedUrl(feedUrl, context.allowedHosts);
-    assertAllowedUrl(fallbackUrl, context.allowedHosts);
+    assertAllowedUrl(articleUrl, context.allowedHosts);
     const response = await fetchWithTimeout(targetUrl, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: gatewayHeaders(input.resource.id, context.payment.paymentIdentifier),
       body: JSON.stringify({
         feedUrl,
-        fallbackUrl,
+        articleUrl,
         paymentIdentifier: context.payment.paymentIdentifier
       })
     });
@@ -407,7 +306,7 @@ const rssPaywallAdapter: PaidResourceAdapter = {
     const citation: Citation = {
         resourceId: input.resource.id,
         title: readNestedString(data, ["article", "title"]) || "Paid publisher article",
-        sourceUrl: readNestedString(data, ["article", "url"]) || fallbackUrl,
+        sourceUrl: readNestedString(data, ["article", "url"]) || articleUrl,
         citationReceipt: {
           paymentIdentifier: context.payment.paymentIdentifier,
           amountUsdc: context.payment.amountUsdc
@@ -419,63 +318,9 @@ const rssPaywallAdapter: PaidResourceAdapter = {
   }
 };
 
-const searchAdapter: PaidResourceAdapter = {
-  type: "search",
-  quote: baseQuote,
-  async execute(input, context) {
-    const baseUrl = readConfigString(input.config, "baseUrl");
-    const query = readString(input.payload, "query") || input.prompt || readConfigString(input.config, "defaultQuery");
-    const url = `${baseUrl.replace(/\/$/, "")}/search?q=${encodeURIComponent(query)}&format=json`;
-    assertAllowedUrl(url, context.allowedHosts);
-    const response = await fetchWithTimeout(url);
-    const data = await response.json();
-    const resultCount = Array.isArray(data.results) ? data.results.length : 0;
-    return ok(input, {
-      query,
-      resultCount,
-      qualityScore: Math.min(1, resultCount / 10),
-      results: Array.isArray(data.results) ? data.results.slice(0, 5) : data
-    });
-  }
-};
-
-const docsSourceAdapter: PaidResourceAdapter = {
-  type: "docs_source",
-  quote: baseQuote,
-  async execute(input, context) {
-    const sourceUrl = readString(input.payload, "sourceUrl") || readConfigString(input.config, "sourceUrl");
-    assertAllowedUrl(sourceUrl, context.allowedHosts);
-    const response = await fetchWithTimeout(sourceUrl);
-    const html = await response.text();
-    const title = readConfigString(input.config, "title") || sourceUrl;
-    const text = htmlToText(html);
-    return ok(input, {
-      title,
-      sourceUrl,
-      excerpt: text.slice(0, 1600),
-      citationReceipt: {
-        resourceId: input.resource.id,
-        paidAt: context.now,
-        paymentIdentifier: context.payment.paymentIdentifier,
-        sourceUrl
-      }
-    }, [
-      {
-        resourceId: input.resource.id,
-        title,
-        sourceUrl,
-        quote: text.slice(0, 240),
-        citationReceipt: {
-          paymentIdentifier: context.payment.paymentIdentifier,
-          amountUsdc: context.payment.amountUsdc
-        }
-      }
-    ]);
-  }
-};
-
 function resource(
   id: string,
+  accessClass: AccessClass,
   adapterType: AdapterType,
   name: string,
   description: string,
@@ -490,6 +335,7 @@ function resource(
     providerId,
     name,
     description,
+    accessClass,
     adapterType,
     priceUsdc,
     expectedValue,
@@ -512,6 +358,18 @@ function ok(input: AdapterInput, data: unknown, citations: Citation[] = []) {
       executedAt: nowIso()
     }
   } satisfies AdapterResult;
+}
+
+function gatewayHeaders(resourceId: string, paymentIdentifier: string): HeadersInit {
+  const headers: Record<string, string> = {
+    "content-type": "application/json",
+    "x-agentpay-payment-id": paymentIdentifier,
+    "x-agentpay-resource-id": resourceId
+  };
+  if (process.env.AGENTPAY_WORKER_GATEWAY_SECRET) {
+    headers["x-agentpay-worker-key"] = process.env.AGENTPAY_WORKER_GATEWAY_SECRET;
+  }
+  return headers;
 }
 
 function readConfigString(config: Record<string, unknown>, key: string): string {
@@ -542,6 +400,29 @@ function readNestedString(value: unknown, path: string[]): string | undefined {
   return typeof current === "string" && current.length > 0 ? current : undefined;
 }
 
+function citationFromMcpResult(
+  resourceId: string,
+  data: unknown,
+  paymentIdentifier: string,
+  amountUsdc: number
+): Citation | undefined {
+  const title = readNestedString(data, ["result", "structuredContent", "title"]);
+  const sourceUrl = readNestedString(data, ["result", "structuredContent", "sourceUrl"]);
+  if (!title && !sourceUrl) return undefined;
+  const citation: Citation = {
+    resourceId,
+    title: title || "Paid MCP source",
+    ...(sourceUrl ? { sourceUrl } : {}),
+    citationReceipt: {
+      paymentIdentifier,
+      amountUsdc
+    }
+  };
+  const quote = readNestedString(data, ["result", "structuredContent", "excerpt"]);
+  if (quote) citation.quote = quote.slice(0, 240);
+  return citation;
+}
+
 function assertAllowedUrl(rawUrl: string, allowedHosts: string[]): void {
   const url = new URL(rawUrl);
   if (!["http:", "https:"].includes(url.protocol)) {
@@ -569,15 +450,6 @@ async function fetchWithTimeout(url: string, init?: RequestInit): Promise<Respon
   } finally {
     clearTimeout(timeout);
   }
-}
-
-function htmlToText(html: string): string {
-  return html
-    .replace(/<script[\s\S]*?<\/script>/gi, " ")
-    .replace(/<style[\s\S]*?<\/style>/gi, " ")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
 }
 
 function clip(value: unknown): unknown {

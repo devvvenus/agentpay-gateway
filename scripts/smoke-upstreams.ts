@@ -15,12 +15,15 @@ const checks = [
     resourceId: "res_mcp_tools",
     payload: {
       toolName: "paid_source_fetch",
-      sourceUrl: "https://docs.arc.io/"
+      sourceUrl: "https://docs.x402.org/"
     },
     assert: (result: AdapterResult) => {
-      const data = result.data as { data?: { result?: unknown } };
-      if (!data.data || typeof data.data !== "object" || !("result" in data.data)) {
-        throw new Error("MCP smoke did not return a JSON-RPC result");
+      const data = result.data as { data?: { result?: { structuredContent?: { sourceUrl?: string; title?: string } } } };
+      if (
+        data.data?.result?.structuredContent?.sourceUrl !== "https://docs.x402.org/" ||
+        typeof data.data.result.structuredContent.title !== "string"
+      ) {
+        throw new Error("MCP smoke did not return paid source evidence");
       }
     }
   },
@@ -28,45 +31,12 @@ const checks = [
     resourceId: "res_api_proxy",
     payload: {},
     assert: (result: AdapterResult) => {
-      const data = result.data as { status?: number; data?: unknown };
+      const data = result.data as { status?: number; data?: { provider?: string; source?: { title?: string } } };
       if (typeof data.status !== "number" || data.status < 200 || data.status >= 300) {
         throw new Error("API proxy smoke did not return a successful upstream status");
       }
-    }
-  },
-  {
-    resourceId: "res_datasette",
-    payload: {
-      sql: "select metric, value from demo_metrics order by metric"
-    },
-    assert: (result: AdapterResult) => {
-      const data = result.data as { rows?: unknown[] };
-      if (!Array.isArray(data.rows) || data.rows.length === 0) {
-        throw new Error("Datasette smoke returned no rows");
-      }
-    }
-  },
-  {
-    resourceId: "res_searxng",
-    payload: {
-      query: "Arc x402 nanopayments"
-    },
-    assert: (result: AdapterResult) => {
-      const data = result.data as { resultCount?: number };
-      if (typeof data.resultCount !== "number") {
-        throw new Error("SearXNG smoke did not return a result count");
-      }
-    }
-  },
-  {
-    resourceId: "res_crawl4ai",
-    payload: {
-      url: process.env.AGENTPAY_SMOKE_CRAWL_URL || "https://developers.circle.com/gateway/nanopayments"
-    },
-    assert: (result: AdapterResult) => {
-      const data = result.data as { markdown?: string };
-      if (typeof data.markdown !== "string" || data.markdown.length === 0) {
-        throw new Error("Crawl worker smoke returned empty markdown");
+      if (data.data?.provider !== "x402-docs-premium-api" || typeof data.data.source?.title !== "string") {
+        throw new Error("API proxy smoke did not return premium provider JSON evidence");
       }
     }
   },
@@ -83,24 +53,12 @@ const checks = [
     }
   },
   {
-    resourceId: "res_memory_retrieval",
-    payload: {
-      query: "Arc x402 budget-aware purchasing layer"
-    },
-    assert: (result: AdapterResult) => {
-      const data = result.data as { data?: { matches?: unknown[] } };
-      if (!Array.isArray(data.data?.matches) || data.data.matches.length === 0) {
-        throw new Error("Memory retrieval smoke returned no matches");
-      }
-    }
-  },
-  {
     resourceId: "res_inference_endpoint",
     payload: {},
     assert: (result: AdapterResult) => {
-      const data = result.data as { data?: { completion?: string; status?: string } };
-      if (data.data?.status !== "completed" || typeof data.data.completion !== "string") {
-        throw new Error("Inference smoke did not complete");
+      const data = result.data as { data?: { completion?: string; status?: string; provider?: string } };
+      if (data.data?.status !== "completed" || data.data.provider !== "ollama" || typeof data.data.completion !== "string") {
+        throw new Error("Inference smoke did not complete with the real Ollama provider");
       }
     }
   },
@@ -115,20 +73,74 @@ const checks = [
         throw new Error("RSS paywall smoke did not return article receipt");
       }
     }
-  },
-  {
-    resourceId: "res_docs_source",
-    payload: {
-      sourceUrl: "https://docs.arc.io/"
-    },
-    assert: (result: AdapterResult) => {
-      const data = result.data as { citationReceipt?: unknown; excerpt?: string };
-      if (!data.citationReceipt || typeof data.excerpt !== "string" || data.excerpt.length === 0) {
-        throw new Error("Docs/source smoke did not return a citation receipt");
-      }
-    }
   }
 ];
+
+const directPremiumResponse = await fetch("http://localhost:8000/premium-api/x402-summary?sourceUrl=https%3A%2F%2Fdocs.x402.org%2F");
+if (directPremiumResponse.status !== 402) {
+  throw new Error(`Premium API direct access should require payment context; got ${directPremiumResponse.status}`);
+}
+console.log("x402 Docs Premium API direct access guard passed");
+
+const directInferenceResponse = await fetch("http://localhost:8000/inference/complete", {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({
+    prompt: "direct unpaid inference request",
+    model: "qwen3:14b",
+    paymentIdentifier: "direct-unpaid"
+  })
+});
+if (directInferenceResponse.status !== 402) {
+  throw new Error(`Inference direct access should require payment context; got ${directInferenceResponse.status}`);
+}
+console.log("Ollama Usage-Based Inference direct access guard passed");
+
+const directDelegationResponse = await fetch("http://localhost:8000/agent/delegate", {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({
+    prompt: "direct unpaid delegation request",
+    payload: { task: "unpaid" },
+    paymentIdentifier: "direct-unpaid"
+  })
+});
+if (directDelegationResponse.status !== 402) {
+  throw new Error(`Agent delegation direct access should require payment context; got ${directDelegationResponse.status}`);
+}
+console.log("Specialist Research Agent direct access guard passed");
+
+const directRssResponse = await fetch("http://localhost:8000/rss/paywall", {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({
+    feedUrl: "https://www.arc.network/blog/rss.xml",
+    articleUrl: "https://www.arc.network/blog/introducing-the-arc-token-whitepaper",
+    paymentIdentifier: "direct-unpaid"
+  })
+});
+if (directRssResponse.status !== 402) {
+  throw new Error(`Publisher paywall direct access should require payment context; got ${directRssResponse.status}`);
+}
+console.log("Arc Publisher Article Unlock direct access guard passed");
+
+const directMcpResponse = await fetch("http://localhost:8000/mcp", {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({
+    jsonrpc: "2.0",
+    id: "direct-unpaid",
+    method: "tools/call",
+    params: {
+      name: "paid_source_fetch",
+      arguments: { sourceUrl: "https://docs.x402.org/" }
+    }
+  })
+});
+if (directMcpResponse.status !== 402) {
+  throw new Error(`MCP paid tool direct access should require payment context; got ${directMcpResponse.status}`);
+}
+console.log("Paid MCP Source Tool direct access guard passed");
 
 for (const check of checks) {
   try {
@@ -166,7 +178,7 @@ for (const check of checks) {
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(
       `${check.resourceId} upstream smoke failed: ${message}\n` +
-        "Start the local upstreams with: docker compose up datasette searxng worker"
+        "Start the local upstreams with: docker compose up worker"
     );
   }
 }

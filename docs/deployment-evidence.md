@@ -6,15 +6,13 @@ Use this file as the final pre-submission evidence list. Do not mark an item com
 
 - Web app URL: `https://agentpay-gateway.vercel.app`
 - Worker URL: `http://49.13.60.236:8010`
-- Datasette URL: `http://49.13.60.236:8011`
-- SearXNG URL: `http://49.13.60.236:8012`
 - Public repository URL: `https://github.com/kaos35/agentpay-gateway`
 - Supabase project reference: `ppydekkmamrylhyngvys`
 
 ## Deployment Notes
 
 - Vercel production deploy is live for the dashboard and Next.js API routes.
-- VPS upstream adapters are live for worker-backed crawl, MCP, delegation, memory, inference, RSS paywall, Datasette and SearXNG calls.
+- VPS upstream fulfillment services are live for worker-backed MCP, delegation, inference and publisher content calls.
 - Server-side agent payments currently require a Circle CLI-authenticated runtime. Vercel serverless does not include the local Circle CLI session, so the final payer execution path must run on a Circle-authenticated backend or be replaced with a Circle API-backed payer before a judge-facing full paid run.
 - The VPS payer endpoint is `/payer/pay-resource`. Vercel should set `AGENTPAY_PAYER_URL=http://49.13.60.236:8010/payer/pay-resource` and the same `AGENTPAY_PAYER_API_KEY` as the worker container. The worker container must be Circle CLI-authenticated with an Arc testnet agent wallet.
 - The VPS runner mounts `$ROOT_DIR/circle-home` to `/root` so the Circle CLI testnet wallet login persists across container restarts.
@@ -37,8 +35,6 @@ Use this file as the final pre-submission evidence list. Do not mark an item com
 - `AGENTPAY_WORKER_URL`
 - `AGENTPAY_PAYER_URL`
 - `AGENTPAY_PAYER_API_KEY`
-- `DATASETTE_BASE_URL`
-- `SEARXNG_BASE_URL`
 
 ## Proofs To Capture
 
@@ -51,7 +47,7 @@ Use this file as the final pre-submission evidence list. Do not mark an item com
 - Signed webhook request updating an existing payment identifier.
 - Dashboard refresh/restart showing persisted state from Supabase.
 - `pnpm typecheck`, `pnpm test`, `pnpm smoke`, `pnpm smoke:upstreams`, `pnpm build` output.
-- `pnpm smoke:upstreams` against the VPS upstreams passed on 2026-06-16.
+- `pnpm smoke:upstreams` against the VPS worker passed on 2026-06-16.
 
 ## Three-Minute Recording Structure
 

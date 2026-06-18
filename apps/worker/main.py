@@ -1,6 +1,6 @@
 import asyncio
+import hmac
 import os
-import math
 import re
 import json
 from collections import Counter
@@ -13,22 +13,12 @@ from bs4 import BeautifulSoup
 from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel, HttpUrl
 
-app = FastAPI(title="AgentPay Crawl Worker", version="0.1.0")
-
-
-class CrawlRequest(BaseModel):
-    url: HttpUrl
+app = FastAPI(title="AgentPay Access Worker", version="0.1.0")
 
 
 class DelegationRequest(BaseModel):
     prompt: str
     payload: dict[str, Any] = {}
-    paymentIdentifier: str
-
-
-class MemoryRequest(BaseModel):
-    query: str
-    namespace: str = "agentpay"
     paymentIdentifier: str
 
 
@@ -41,7 +31,7 @@ class InferenceRequest(BaseModel):
 
 class RssPaywallRequest(BaseModel):
     feedUrl: HttpUrl
-    fallbackUrl: HttpUrl
+    articleUrl: HttpUrl
     paymentIdentifier: str
 
 
@@ -168,17 +158,6 @@ def term_vector(text: str) -> Counter[str]:
     return Counter(tokenize(text))
 
 
-def cosine_similarity(left: Counter[str], right: Counter[str]) -> float:
-    if not left or not right:
-        return 0.0
-    dot = sum(left[token] * right.get(token, 0) for token in left)
-    left_norm = math.sqrt(sum(value * value for value in left.values()))
-    right_norm = math.sqrt(sum(value * value for value in right.values()))
-    if left_norm == 0 or right_norm == 0:
-        return 0.0
-    return dot / (left_norm * right_norm)
-
-
 def top_terms(text: str, limit: int = 8) -> list[str]:
     return [token for token, _count in term_vector(text).most_common(limit)]
 
@@ -187,23 +166,24 @@ def classify_task(text: str) -> str:
     terms = set(tokenize(text))
     if {"rss", "publisher", "article", "citation"} & terms:
         return "publisher-monetization"
-    if {"dataset", "sql", "data"} & terms:
-        return "dataset-procurement"
-    if {"search", "research", "source"} & terms:
-        return "research-procurement"
+    if {"api", "endpoint", "data"} & terms:
+        return "premium-api-access"
+    if {"mcp", "tool", "server"} & terms:
+        return "mcp-tool-access"
     if {"agent", "delegate", "delegation"} & terms:
         return "agent-delegation"
+    if {"model", "inference", "usage", "reasoning"} & terms:
+        return "usage-service-access"
     return "budgeted-resource-procurement"
 
 
 def procurement_recommendations(text: str, terms: list[str]) -> list[dict[str, object]]:
     term_set = set(terms).union(tokenize(text))
     candidates = [
-        ("docs_source", "Buy citation-backed docs/source access", {"docs", "source", "citation", "arc"}),
+        ("api_proxy", "Buy premium API access when a direct endpoint can answer the task", {"api", "endpoint", "data", "premium"}),
+        ("mcp", "Buy MCP tool access when the agent needs a specialist callable tool", {"mcp", "tool", "server", "action"}),
         ("rss_paywall", "Buy publisher/RSS article access", {"rss", "publisher", "article", "creator"}),
-        ("search", "Buy paid search when freshness matters", {"search", "freshness", "research"}),
-        ("dataset", "Buy dataset query when structured evidence is needed", {"dataset", "sql", "data"}),
-        ("memory_retrieval", "Buy memory retrieval when prior context improves confidence", {"memory", "rag", "context"}),
+        ("agent_delegation", "Buy another agent's service when the task benefits from specialist delegation", {"agent", "delegate", "service", "specialist"}),
         ("inference", "Buy inference when synthesis or classification is needed", {"inference", "model", "reasoning"}),
     ]
     scored = []
@@ -214,8 +194,8 @@ def procurement_recommendations(text: str, terms: list[str]) -> list[dict[str, o
     if not scored:
         scored.append(
             {
-                "adapterType": "search",
-                "action": "Buy paid search first, then pay for source citations only if freshness or confidence improves.",
+                "adapterType": "api_proxy",
+                "action": "Buy the lowest-cost premium access class first, then escalate only if confidence improves.",
                 "matchedTerms": terms[:3],
             }
         )
@@ -232,41 +212,9 @@ def confidence_from_terms(text: str, terms: list[str]) -> float:
 
 
 def build_delegate_summary(task_type: str, terms: list[str], recommendations: list[dict[str, object]]) -> str:
-    primary = recommendations[0]["adapterType"] if recommendations else "search"
+    primary = recommendations[0]["adapterType"] if recommendations else "api_proxy"
     term_text = ", ".join(terms[:5]) if terms else "the submitted task"
     return f"Classified as {task_type}. Primary paid resource: {primary}. Decision basis: {term_text}."
-
-
-def load_memory_corpus(namespace: str) -> list[dict[str, Any]]:
-    configured = os.getenv("AGENTPAY_MEMORY_CORPUS", "").strip()
-    corpus = [
-        {
-            "id": "mem_arc_budget_layer",
-            "text": "AI agents need a budget-aware purchasing layer for internet resources on Arc, Circle and x402.",
-            "tags": ["arc", "x402", "budget", "agent"],
-        },
-        {
-            "id": "mem_creator_citations",
-            "text": "Citation receipts let publishers earn when an agent uses a source in its final answer.",
-            "tags": ["publisher", "citation", "receipt"],
-        },
-        {
-            "id": "mem_paid_tools",
-            "text": "Paid tools, APIs, datasets, search, crawls, memory and inference can be procured per task.",
-            "tags": ["tools", "dataset", "inference"],
-        },
-        {
-            "id": "mem_distribution_bootstrap",
-            "text": "Distribution improves when paid resource providers plug into existing creator and publisher workflows.",
-            "tags": ["distribution", "creator", "publisher"],
-        },
-    ]
-    if configured:
-        for index, chunk in enumerate(configured.split("||"), start=1):
-            text = chunk.strip()
-            if text:
-                corpus.append({"id": f"{namespace}_env_{index}", "text": text, "tags": [namespace]})
-    return corpus
 
 
 def flatten_context(value: Any) -> str:
@@ -295,19 +243,6 @@ def rank_sentences(text: str, terms: list[str], limit: int = 3) -> list[str]:
     return [sentence for _score, sentence in ranked[:limit]]
 
 
-def build_inference_completion(prompt: str, evidence: list[str], terms: list[str]) -> str:
-    if evidence:
-        evidence_text = " ".join(evidence)
-    else:
-        evidence_text = prompt[:240]
-    term_text = ", ".join(terms[:6]) if terms else "budget, confidence, source quality"
-    return (
-        f"Decision: prioritize paid resources that improve {term_text}. "
-        f"Evidence considered: {evidence_text} "
-        "Recommended action: pay only when the expected value improves answer confidence or citation quality; otherwise skip."
-    )[:900]
-
-
 def build_inference_prompt(prompt: str, evidence: list[str], terms: list[str]) -> str:
     evidence_text = "\n".join(f"- {item}" for item in evidence) if evidence else "- No external evidence supplied."
     term_text = ", ".join(terms[:10]) if terms else "budget, confidence, source quality"
@@ -327,7 +262,56 @@ def build_inference_prompt(prompt: str, evidence: list[str], terms: list[str]) -
     )
 
 
-async def generate_with_ollama(model: str, prompt: str) -> dict[str, Any] | None:
+def require_gateway_payment(
+    request: Request,
+    expected_payment_identifier: str | None = None,
+    expected_resource_id: str | None = None,
+) -> str:
+    payment_identifier = request.headers.get("x-agentpay-payment-id", "").strip()
+    resource_id = request.headers.get("x-agentpay-resource-id", "").strip()
+    worker_secret = os.getenv("AGENTPAY_WORKER_GATEWAY_SECRET", "").strip()
+    if not payment_identifier or not resource_id:
+        raise HTTPException(
+            status_code=402,
+            detail="This provider endpoint requires an AgentPay gateway payment context.",
+        )
+    if worker_secret:
+        provided_secret = request.headers.get("x-agentpay-worker-key", "")
+        if not hmac.compare_digest(provided_secret, worker_secret):
+            raise HTTPException(status_code=401, detail="Invalid AgentPay worker gateway key.")
+    if expected_payment_identifier is not None and payment_identifier != expected_payment_identifier:
+        raise HTTPException(status_code=402, detail="Payment context does not match the paid request.")
+    if expected_resource_id is not None and resource_id != expected_resource_id:
+        raise HTTPException(status_code=402, detail="Resource context does not match the paid provider endpoint.")
+    return payment_identifier
+
+
+async def fetch_source_evidence(source_url: str, payment_identifier: str) -> dict[str, object]:
+    assert_allowed(source_url)
+    async with httpx.AsyncClient(timeout=12.0, follow_redirects=True) as client:
+        response = await client.get(source_url)
+        response.raise_for_status()
+    soup = BeautifulSoup(response.text, "html.parser")
+    title_node = soup.find("title")
+    title = title_node.get_text(" ", strip=True) if title_node else source_url
+    text = soup.get_text(" ", strip=True)
+    terms = top_terms(text, limit=8)
+    evidence = rank_sentences(text, terms, limit=3)
+    return {
+        "sourceUrl": source_url,
+        "statusCode": response.status_code,
+        "title": title,
+        "excerpt": " ".join(evidence)[:900] if evidence else text[:900],
+        "keyTerms": terms,
+        "receipt": {
+            "kind": "mcp-paid-source-fetch",
+            "sourceUrl": source_url,
+            "paymentIdentifier": payment_identifier,
+        },
+    }
+
+
+async def generate_with_ollama(model: str, prompt: str) -> dict[str, Any]:
     base_url = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434").rstrip("/")
     timeout_seconds = float(os.getenv("OLLAMA_TIMEOUT_SECONDS", "90"))
     payload = {
@@ -347,7 +331,7 @@ async def generate_with_ollama(model: str, prompt: str) -> dict[str, Any] | None
             data = response.json()
             completion = str(data.get("response") or "").strip()
             if not completion:
-                return None
+                raise HTTPException(status_code=502, detail="Ollama returned an empty completion")
             return {
                 "provider": "ollama",
                 "baseUrl": base_url,
@@ -360,11 +344,18 @@ async def generate_with_ollama(model: str, prompt: str) -> dict[str, Any] | None
                     "doneReason": data.get("done_reason"),
                 },
             }
+    except HTTPException:
+        raise
     except Exception as error:
-        return {
-            "provider": "local-fallback",
-            "error": str(error)[:500],
-        }
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": "Ollama inference provider is unavailable",
+                "message": str(error)[:500],
+                "baseUrl": base_url,
+                "model": model,
+            },
+        )
 
 
 @app.get("/health")
@@ -372,13 +363,33 @@ async def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.get("/premium-api/x402-summary")
+async def premium_api_summary(request: Request, sourceUrl: str = "https://docs.x402.org/") -> dict[str, object]:
+    payment_identifier = require_gateway_payment(request, expected_resource_id="res_api_proxy")
+    evidence = await fetch_source_evidence(sourceUrl, payment_identifier)
+    return {
+        "provider": "x402-docs-premium-api",
+        "status": "fulfilled",
+        "endpoint": "/premium-api/x402-summary",
+        "accessModel": "pay-per-request",
+        "source": evidence,
+        "fields": {
+            "sourceUrl": "string",
+            "title": "string",
+            "excerpt": "string",
+            "keyTerms": "string[]",
+        },
+    }
+
+
 @app.post("/agent/delegate")
-async def delegate_agent(request: DelegationRequest) -> dict[str, object]:
-    prompt = request.prompt.strip()
-    delegated_task = str(request.payload.get("task") or "research_brief").strip()
+async def delegate_agent(request: Request, delegation_request: DelegationRequest) -> dict[str, object]:
+    require_gateway_payment(request, delegation_request.paymentIdentifier, "res_agent_delegation")
+    prompt = delegation_request.prompt.strip()
+    delegated_task = str(delegation_request.payload.get("task") or "research_brief").strip()
     source_text = " ".join(
         str(value)
-        for value in [prompt, delegated_task, request.payload.get("query"), request.payload.get("sourceUrl")]
+        for value in [prompt, delegated_task, delegation_request.payload.get("query"), delegation_request.payload.get("sourceUrl")]
         if value
     )
     terms = top_terms(source_text, limit=8)
@@ -397,58 +408,27 @@ async def delegate_agent(request: DelegationRequest) -> dict[str, object]:
         "agent": "creator-market-research-agent",
         "status": "completed",
         "delegatedTask": delegated_task,
-        "paymentIdentifier": request.paymentIdentifier,
+        "paymentIdentifier": delegation_request.paymentIdentifier,
         "deliverable": deliverable,
     }
 
 
-@app.post("/memory/retrieve")
-async def retrieve_memory(request: MemoryRequest) -> dict[str, object]:
-    query = request.query.strip()
-    corpus = load_memory_corpus(request.namespace)
-    query_vector = term_vector(query)
-    scored = []
-    for item in corpus:
-        text = f"{item['text']} {' '.join(item.get('tags', []))}"
-        similarity = cosine_similarity(query_vector, term_vector(text))
-        overlap = sorted(set(tokenize(query)).intersection(tokenize(text)))
-        scored.append(
-            {
-                **item,
-                "score": round(similarity, 4),
-                "matchedTerms": overlap[:10],
-            }
-        )
-    scored.sort(key=lambda item: (item["score"], len(item["matchedTerms"])), reverse=True)
-    matches = [item for item in scored if item["score"] > 0][:3] or scored[:1]
-    return {
-        "namespace": request.namespace,
-        "paymentIdentifier": request.paymentIdentifier,
-        "embedding": "local-tf-cosine",
-        "queryTerms": top_terms(query, limit=8),
-        "matches": matches,
-    }
-
-
 @app.post("/inference/complete")
-async def complete_inference(request: InferenceRequest) -> dict[str, object]:
-    prompt = request.prompt.strip()
-    context_text = flatten_context(request.context)
+async def complete_inference(request: Request, inference_request: InferenceRequest) -> dict[str, object]:
+    require_gateway_payment(request, inference_request.paymentIdentifier, "res_inference_endpoint")
+    prompt = inference_request.prompt.strip()
+    context_text = flatten_context(inference_request.context)
     source_text = f"{prompt}\n{context_text}".strip()
     terms = top_terms(source_text, limit=10)
     sentences = rank_sentences(source_text, terms, limit=3)
     inference_prompt = build_inference_prompt(prompt, sentences, terms)
-    generated = await generate_with_ollama(request.model, inference_prompt)
-    completion = (
-        str(generated.get("completion"))
-        if generated and generated.get("provider") == "ollama" and generated.get("completion")
-        else build_inference_completion(prompt, sentences, terms)
-    )
+    generated = await generate_with_ollama(inference_request.model, inference_prompt)
+    completion = str(generated.get("completion"))
     return {
-        "model": request.model,
-        "provider": generated.get("provider") if generated else "local-fallback",
+        "model": inference_request.model,
+        "provider": generated.get("provider"),
         "status": "completed",
-        "paymentIdentifier": request.paymentIdentifier,
+        "paymentIdentifier": inference_request.paymentIdentifier,
         "completion": completion,
         "evidence": sentences,
         "keyTerms": terms,
@@ -458,22 +438,22 @@ async def complete_inference(request: InferenceRequest) -> dict[str, object]:
             "outputCharacters": len(completion),
         },
         "metadata": {
-            "ollama": generated.get("raw") if generated and generated.get("provider") == "ollama" else None,
-            "fallbackReason": generated.get("error") if generated and generated.get("provider") == "local-fallback" else None,
+            "ollama": generated.get("raw"),
         },
     }
 
 
 @app.post("/rss/paywall")
-async def rss_paywall(request: RssPaywallRequest) -> dict[str, object]:
-    feed_url = str(request.feedUrl)
-    fallback_url = str(request.fallbackUrl)
+async def rss_paywall(request: Request, paywall_request: RssPaywallRequest) -> dict[str, object]:
+    require_gateway_payment(request, paywall_request.paymentIdentifier, "res_rss_paywall")
+    feed_url = str(paywall_request.feedUrl)
+    article_url = str(paywall_request.articleUrl)
     assert_allowed(feed_url)
-    assert_allowed(fallback_url)
+    assert_allowed(article_url)
 
     article = {
-        "title": fallback_url,
-        "url": fallback_url,
+        "title": article_url,
+        "url": article_url,
         "excerpt": "",
     }
     try:
@@ -493,7 +473,7 @@ async def rss_paywall(request: RssPaywallRequest) -> dict[str, object]:
                     if link_node and link_node.has_attr("href")
                     else link_node.get_text(" ", strip=True)
                     if link_node
-                    else fallback_url
+                    else article_url
                 ),
                 "excerpt": description_node.get_text(" ", strip=True)[:600] if description_node else article["excerpt"],
             }
@@ -501,30 +481,30 @@ async def rss_paywall(request: RssPaywallRequest) -> dict[str, object]:
         article["rssError"] = str(rss_error)[:300]
         try:
             async with httpx.AsyncClient(timeout=12.0, follow_redirects=True) as client:
-                fallback_response = await client.get(fallback_url)
-                fallback_response.raise_for_status()
-            fallback_soup = BeautifulSoup(fallback_response.text, "html.parser")
-            title_node = fallback_soup.find("title")
-            article["title"] = title_node.get_text(" ", strip=True) if title_node else fallback_url
-            article["excerpt"] = fallback_soup.get_text(" ", strip=True)[:600]
-        except Exception as fallback_error:
-            article["fallbackError"] = str(fallback_error)[:300]
+                article_response = await client.get(article_url)
+                article_response.raise_for_status()
+            article_soup = BeautifulSoup(article_response.text, "html.parser")
+            title_node = article_soup.find("title")
+            article["title"] = title_node.get_text(" ", strip=True) if title_node else article_url
+            article["excerpt"] = article_soup.get_text(" ", strip=True)[:600]
+        except Exception as article_error:
+            article["articleFetchError"] = str(article_error)[:300]
 
     return {
         "status": "unlocked",
-        "paymentIdentifier": request.paymentIdentifier,
+        "paymentIdentifier": paywall_request.paymentIdentifier,
         "feedUrl": feed_url,
         "article": article,
         "receipt": {
             "kind": "publisher-rss-paywall",
             "sourceUrl": article["url"],
-            "paymentIdentifier": request.paymentIdentifier,
+            "paymentIdentifier": paywall_request.paymentIdentifier,
         },
     }
 
 
 @app.post("/mcp")
-async def mcp(request: McpRequest) -> dict[str, object]:
+async def mcp(raw_request: Request, request: McpRequest) -> dict[str, object]:
     tools = [
         {
             "name": "paid_source_fetch",
@@ -535,11 +515,11 @@ async def mcp(request: McpRequest) -> dict[str, object]:
             },
         },
         {
-            "name": "paid_dataset_query",
-            "description": "Run a paid dataset query through AgentPay.",
+            "name": "paid_access_status",
+            "description": "Return paid access status for an AgentPay protected resource.",
             "inputSchema": {
                 "type": "object",
-                "properties": {"sql": {"type": "string"}},
+                "properties": {"resourceId": {"type": "string"}},
             },
         },
     ]
@@ -547,16 +527,42 @@ async def mcp(request: McpRequest) -> dict[str, object]:
     if request.method == "tools/list":
         result: object = {"tools": tools}
     elif request.method == "tools/call":
+        require_gateway_payment(raw_request, str(request.id), "res_mcp_tools")
         tool_name = request.params.get("name", "unknown")
-        result = {
-            "content": [
-                {
-                    "type": "text",
-                    "text": f"MCP tool {tool_name} executed through the AgentPay worker after paid access.",
-                }
-            ],
-            "isError": False,
-        }
+        arguments = request.params.get("arguments") if isinstance(request.params.get("arguments"), dict) else {}
+        if tool_name == "paid_source_fetch":
+            source_url = str(arguments.get("sourceUrl") or "https://docs.x402.org/")
+            evidence = await fetch_source_evidence(source_url, str(request.id))
+            result = {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": f"{evidence['title']}: {evidence['excerpt']}",
+                    }
+                ],
+                "structuredContent": evidence,
+                "isError": False,
+            }
+        elif tool_name == "paid_access_status":
+            result = {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": f"Paid MCP access fulfilled for payment {request.id}.",
+                    }
+                ],
+                "structuredContent": {
+                    "status": "fulfilled",
+                    "paymentIdentifier": str(request.id),
+                    "resourceId": arguments.get("resourceId"),
+                },
+                "isError": False,
+            }
+        else:
+            result = {
+                "content": [{"type": "text", "text": f"Unsupported paid MCP tool: {tool_name}"}],
+                "isError": True,
+            }
     else:
         raise HTTPException(status_code=404, detail=f"Unsupported MCP method: {request.method}")
 
@@ -684,38 +690,3 @@ async def wallet_status(request: Request, status_request: WalletStatusRequest) -
             "backingEOA": gateway_data.get("backingEOA") if isinstance(gateway_data, dict) else None,
         },
     }
-
-
-@app.post("/crawl")
-async def crawl(request: CrawlRequest) -> dict[str, object]:
-    url = str(request.url)
-    assert_allowed(url)
-
-    try:
-        from crawl4ai import AsyncWebCrawler  # type: ignore
-
-        async with AsyncWebCrawler() as crawler:
-            result = await crawler.arun(url=url)
-            markdown = getattr(result, "markdown", None) or getattr(result, "fit_markdown", None) or ""
-            return {
-                "engine": "crawl4ai",
-                "url": url,
-                "markdown": markdown[:12000],
-                "metadata": getattr(result, "metadata", {}) or {},
-            }
-    except Exception as crawl4ai_error:
-        async with httpx.AsyncClient(timeout=12.0, follow_redirects=True) as client:
-            response = await client.get(url)
-            response.raise_for_status()
-        soup = BeautifulSoup(response.text, "html.parser")
-        for node in soup(["script", "style", "noscript"]):
-            node.decompose()
-        text = " ".join(soup.get_text(" ").split())
-        title = soup.title.string.strip() if soup.title and soup.title.string else url
-        return {
-            "engine": "html-fallback",
-            "url": url,
-            "title": title,
-            "markdown": text[:12000],
-            "metadata": {"crawl4ai_error": str(crawl4ai_error)[:500]},
-        }

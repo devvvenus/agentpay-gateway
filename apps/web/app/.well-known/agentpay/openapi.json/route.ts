@@ -5,7 +5,7 @@ export async function GET() {
       title: "AgentPay Gateway",
       version: "0.1.0",
       description:
-        "Budget-aware purchasing layer for AI agents across paid tools, APIs, datasets, crawls, delegated agents, memory, inference, RSS paywalls, search and source citations."
+        "Budget-aware nanopayment access layer for AI agents across premium APIs, MCP tools, publisher content, agent services and usage-based services."
     },
     servers: [{ url: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000" }],
     paths: {
@@ -27,18 +27,7 @@ export async function GET() {
                       type: "array",
                       items: {
                         type: "string",
-                        enum: [
-                          "mcp",
-                          "api_proxy",
-                          "dataset",
-                          "crawl",
-                          "agent_delegation",
-                          "memory_retrieval",
-                          "inference",
-                          "rss_paywall",
-                          "search",
-                          "docs_source"
-                        ]
+                        enum: ["mcp", "api_proxy", "agent_delegation", "inference", "rss_paywall"]
                       }
                     }
                   }
@@ -68,6 +57,35 @@ export async function GET() {
           responses: {
             "200": { description: "Paid resource result" },
             "402": { description: "x402 payment challenge" }
+          }
+        }
+      },
+      "/api/resources/manifests": {
+        get: {
+          operationId: "listResourceManifests",
+          summary: "List machine-readable AgentPay resource manifests.",
+          responses: {
+            "200": { description: "Resource manifest catalog" }
+          }
+        }
+      },
+      "/api/resources/{resourceId}/manifest": {
+        get: {
+          operationId: "getResourceManifest",
+          summary: "Get a machine-readable manifest for one paid resource.",
+          parameters: [{ name: "resourceId", in: "path", required: true, schema: { type: "string" } }],
+          responses: {
+            "200": { description: "Resource manifest" },
+            "404": { description: "Resource not found" }
+          }
+        }
+      },
+      "/.well-known/agentpay/resources.json": {
+        get: {
+          operationId: "wellKnownResourceCatalog",
+          summary: "Well-known AgentPay paid resource catalog.",
+          responses: {
+            "200": { description: "Resource manifest catalog" }
           }
         }
       },

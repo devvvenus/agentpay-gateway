@@ -6,8 +6,16 @@ export async function GET() {
   const store = await getStore();
   const config = loadPaymentConfig();
   const latestPayment = store.listPaymentEvents()[0] ?? null;
-  const latestReceipt = store.listReceipts().at(-1) ?? null;
-  const latestEarning = store.listProviderEarnings().at(-1) ?? null;
+  const receipts = store.listReceipts();
+  const earnings = store.listProviderEarnings();
+  const latestReceipt =
+    (latestPayment ? receipts.find((receipt) => receipt.paymentEventId === latestPayment.id) : undefined) ??
+    receipts.sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0] ??
+    null;
+  const latestEarning =
+    (latestPayment ? earnings.find((earning) => earning.paymentEventId === latestPayment.id) : undefined) ??
+    earnings.sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0] ??
+    null;
 
   return Response.json({
     paymentMode: config.mode,

@@ -319,6 +319,7 @@ export class PaymentService {
     if (stored.status !== "replayed") {
       this.store.addProviderEarning({
         id: createId("earn"),
+        paymentEventId: stored.id,
         providerId: input.provider.id,
         resourceId: input.resource.id,
         amountUsdc: input.resource.priceUsdc,

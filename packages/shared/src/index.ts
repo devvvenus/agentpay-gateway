@@ -9,14 +9,16 @@ export const USDC_DECIMALS = 6;
 export type AdapterType =
   | "mcp"
   | "api_proxy"
-  | "dataset"
-  | "crawl"
   | "agent_delegation"
-  | "memory_retrieval"
   | "inference"
-  | "rss_paywall"
-  | "search"
-  | "docs_source";
+  | "rss_paywall";
+
+export type AccessClass =
+  | "premium_api"
+  | "mcp_tool"
+  | "publisher_content"
+  | "agent_service"
+  | "usage_service";
 
 export type PaymentStatus =
   | "challenge"
@@ -42,6 +44,7 @@ export interface Resource {
   providerId: string;
   name: string;
   description: string;
+  accessClass: AccessClass;
   adapterType: AdapterType;
   priceUsdc: number;
   expectedValue: number;
@@ -122,6 +125,7 @@ export interface Receipt {
 
 export interface ProviderEarning {
   id: string;
+  paymentEventId?: string;
   providerId: string;
   resourceId: string;
   amountUsdc: number;
@@ -201,12 +205,23 @@ export interface AgentRun {
 
 export interface AgentRunOutput {
   answer: string;
+  policy: PaymentPolicySummary | null;
   paidCitations: Citation[];
   skippedSources: Array<{ resourceId: string; reason: string }>;
   payments: PaymentEvent[];
   decisions: AgentDecision[];
   budgetEfficiency: number;
   adapterResults: AdapterResult[];
+}
+
+export interface PaymentPolicySummary {
+  maxSpendUsdc: number;
+  maxPricePerCallUsdc?: number;
+  allowedAccessClasses: AccessClass[];
+  trustedProviderCount: number;
+  requireCitations: boolean;
+  cacheMode: "reuse" | "refresh" | "ignore";
+  minScore: number;
 }
 
 export interface Metrics {

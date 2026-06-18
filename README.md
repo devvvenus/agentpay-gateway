@@ -1,10 +1,10 @@
 # AgentPay Gateway
 
-AgentPay Gateway is a testnet-only budget-aware purchasing layer for AI agents. It lets an AI agent receive a small USDC budget, decide which internet resources are worth buying, pay through x402-style access on Arc testnet, and return an answer with paid citations, receipts and provider earnings.
+AgentPay Gateway is a testnet-only nanopayment access layer for AI agents. It lets an AI agent receive a small USDC budget, decide which pay-per-request internet resources are worth buying, pay through x402-style access on Arc testnet, and return an answer with citations, receipts and provider earnings.
 
 Demo sentence:
 
-> AI agents need a budget-aware purchasing layer for internet resources. We built that layer on Arc + Circle + x402.
+> AI agents need a nanopayment access layer for internet resources. We built that layer on Arc + Circle + x402.
 
 ## Lepton RFB positioning
 
@@ -12,18 +12,18 @@ Demo sentence:
 - Secondary: RFB 06, Creator & Publisher Monetization.
 - Supporting: RFB 05, Nanopayment Infrastructure & Tooling.
 
-The product should not be presented as a generic SDK or starter kit. The jury-facing story is a working agent application: the agent buys useful creator/publisher sources, skips low-value costs, records every payment, and shows who earned money.
+The product should not be presented as a generic SDK, a shopping agent or an adapter demo. The jury-facing story is a working nanopayment gateway: the agent buys useful APIs, MCP tools, publisher content, agent services and usage-based services, skips low-value costs, records every payment, and shows who earned money.
 
 ## What is implemented
 
 - Next.js App Router dashboard and API surface.
-- Payment boundary modeled after the Circle Arc Nanopayments starter: unpaid calls return `402 Payment Required`; paid calls execute adapters only after server-side x402 settlement verification.
-- Ten adapter/proxy integrations exposed as paid resource types: MCP, API proxy, Datasette, Crawl4AI worker, agent-to-agent delegation, memory/vector retrieval, inference endpoint, publisher/RSS paywall, SearXNG, and docs/source gateway.
+- Payment boundary modeled after the Circle Arc Nanopayments starter: unpaid calls return `402 Payment Required`; paid calls fulfill protected resources only after server-side x402 settlement verification.
+- Five nanopayment access classes exposed as paid resources: premium API calls, MCP server/tool calls, web content or publisher sources, agent-to-agent services, and usage-based service access.
 - Agent budget engine with value scoring, cache-vs-pay decisions, skipped resources, receipts, spend and citation output.
 - Supabase schema migrations plus runtime snapshot persistence for live dashboard state.
-- FastAPI crawl worker with Crawl4AI support and safe HTML fallback.
+- FastAPI access worker for paid MCP, agent delegation, inference and publisher content fulfillment.
 - OpenAPI descriptor for generic paid API/tool integrations.
-- Docker Compose examples for Datasette, SearXNG and the worker.
+- Docker Compose example for the access worker.
 
 ## Current audit baseline
 
@@ -37,17 +37,15 @@ pnpm build
 pnpm smoke:upstreams
 ```
 
-`pnpm smoke:upstreams` verifies all ten adapter paths against running local upstream services. Generated files such as `.next/`, `.agentpay/`, `*.log`, `*.tsbuildinfo` and `_tmp_*` are ignored and should not be used as audit evidence. See [Current audit state](docs/current-audit-state.md) for exact boundaries.
+`pnpm smoke:upstreams` verifies the underlying fulfillment paths against running local upstream services. Generated files such as `.next/`, `.agentpay/`, `*.log`, `*.tsbuildinfo` and `_tmp_*` are ignored and should not be used as audit evidence. See [Current audit state](docs/current-audit-state.md) for exact boundaries.
 
 Live production status on 2026-06-16:
 
 - App: https://agentpay-gateway.vercel.app
 - Repository: https://github.com/kaos35/agentpay-gateway
 - Worker: `http://49.13.60.236:8010`
-- Datasette: `http://49.13.60.236:8011`
-- SearXNG: `http://49.13.60.236:8012`
-- Latest full integration run: `run_7729fefa-9dbc-45ed-843e-7909ff5187e4`
-- Full integration result: 10 paid resources, 10 settled x402 payments, 10 adapter fulfillments, 0 adapter errors, 0.016500 USDC total spend, 2 paid citations.
+- Latest repositioned full integration run: `run_a4528580-b7c7-49e4-b67e-4bc07c2d36dd`
+- Full integration result: 5 paid access classes, 5 settled x402 payments, 5 fulfillment executions, 0 fulfillment errors, 0.008800 USDC total spend, 1 paid citation.
 
 ## Local quickstart
 
@@ -66,44 +64,43 @@ python -m pip install -r apps/worker/requirements.txt
 pnpm worker:dev
 ```
 
-Local upstreams for the real adapter path:
+Local upstream for the real fulfillment path:
 
 ```powershell
-docker compose up datasette searxng worker
+docker compose up worker
 ```
 
-With the default `.env.local`, the dataset, search, crawl, delegation, memory, inference and RSS paywall adapters call those services directly:
+When using Docker, pass `AGENTPAY_WORKER_GATEWAY_SECRET` and `AGENTPAY_PAYER_API_KEY` from your shell or a Compose `.env` file if you want the worker to enforce gateway-only access and expose the Circle payer endpoint. The same `AGENTPAY_WORKER_GATEWAY_SECRET` must also be set in the web/API runtime.
+
+With the default `.env.local`, the underlying fulfillment services call the worker and public allowlisted endpoints directly:
 
 - `AGENTPAY_MCP_SERVER_URL=http://localhost:8000/mcp`
-- `DATASETTE_BASE_URL=http://localhost:8001`
-- `SEARXNG_BASE_URL=http://localhost:8080`
 - `AGENTPAY_WORKER_URL=http://localhost:8000`
 - `AGENTPAY_DELEGATION_URL=http://localhost:8000/agent/delegate`
-- `AGENTPAY_MEMORY_URL=http://localhost:8000/memory/retrieve`
 - `AGENTPAY_INFERENCE_URL=http://localhost:8000/inference/complete`
 - `AGENTPAY_INFERENCE_MODEL=qwen3:14b`
 - `OLLAMA_BASE_URL=http://127.0.0.1:11434`
 - `AGENTPAY_RSS_PAYWALL_URL=http://localhost:8000/rss/paywall`
 
-The seeded adapter registry points at these real upstream services. The full integration path calls those upstreams directly.
+The seeded access registry points at these real upstream services. The full access flow calls those upstreams directly.
 
-The paid inference adapter uses Ollama when the worker can reach `OLLAMA_BASE_URL`. With the recommended local setup, `qwen3:14b` acts as the paid model endpoint. If Ollama is unavailable, the worker marks the response as `provider: local-fallback` instead of pretending a model call happened.
+The usage-based service access path uses Ollama when the worker can reach `OLLAMA_BASE_URL`. With the recommended local setup, `qwen3:14b` acts as the paid model endpoint. If Ollama is unavailable, the worker returns a fulfillment error instead of pretending a model call happened.
 
-Verify that the adapters reach the real upstream services:
+Verify that the paid access paths reach the real upstream services:
 
 ```powershell
 pnpm smoke:upstreams
 ```
 
-This command expects Datasette, SearXNG and the worker to already be running. It verifies all ten adapters: MCP, API proxy, Datasette, Crawl4AI worker, agent delegation, memory retrieval, inference, RSS paywall, SearXNG and docs/source. It intentionally fails if an upstream is unavailable, because the product should prove real adapter execution instead of silently falling back to synthetic responses.
+This command expects the worker to already be running. It intentionally fails if an upstream is unavailable, because the product should prove real fulfillment instead of silently falling back to synthetic responses.
 
 ## Testnet posture
 
 `.env.example` defaults to `AGENTPAY_PAYMENT_MODE=x402`. Configure `BUYER_ADDRESS`, `SELLER_ADDRESS`, provider-specific `SELLER_ADDRESS_1..3` and Circle CLI credentials in `.env.local` before running paid resources. Mainnet is blocked unless `ALLOW_MAINNET=true`.
 
-In x402 mode, provider wallets must be real Arc testnet address-shaped values. Local fallback provider addresses are rejected before resource fulfillment. Server-side verification uses Circle Gateway batching settlement verification; paid adapters execute only after verification succeeds.
+In x402 mode, provider wallets must be real Arc testnet address-shaped values. Local development provider addresses are rejected before resource fulfillment. Server-side verification uses Circle Gateway batching settlement verification; paid access is fulfilled only after verification succeeds.
 
-For live deployments, set `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` so runtime state persists to Supabase `runtime_snapshots`. Set `AGENTPAY_ADMIN_API_KEY` before exposing provider publishing and `AGENTPAY_WEBHOOK_SECRET` or `CIRCLE_WEBHOOK_SECRET` before accepting payment webhooks.
+For live deployments, set `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` so runtime state persists to Supabase `runtime_snapshots`. Set `AGENTPAY_ADMIN_API_KEY` before exposing provider publishing, `AGENTPAY_WORKER_GATEWAY_SECRET` on both the web/API runtime and worker, and `AGENTPAY_WEBHOOK_SECRET` or `CIRCLE_WEBHOOK_SECRET` before accepting payment webhooks.
 
 For audits, inspect `.env.local` or the running dashboard for the active payment mode. Test-only payment helpers are restricted to test code and are not the product runtime path.
 
@@ -112,17 +109,74 @@ For audits, inspect `.env.local` or the running dashboard for the active payment
 - `POST /api/agent/runs`
 - `GET /api/agent/runs/:id`
 - `GET|POST /api/pay/:resourceId`
+- `POST /api/providers`
 - `POST /api/providers/resources`
+- `POST /api/providers/resources/test`
 - `GET /api/resources`
+- `GET /api/resources/manifests`
+- `GET /api/resources/:resourceId/manifest`
 - `POST /api/payments/webhook`
 - `GET /api/metrics`
 - `POST /mcp`
 - `GET /.well-known/agentpay/openapi.json`
+- `GET /.well-known/agentpay/resources.json`
+
+## External agent SDK usage
+
+External agents can treat AgentPay as a nanopayment access gateway. The SDK does not mint or sign payment proofs. It reads the live catalog, prepares the x402 challenge, and sends the proof produced by an external wallet, Circle CLI flow or x402 payment client.
+
+```ts
+import { createAgentPayClient } from "@agentpay/sdk";
+
+const agentpay = createAgentPayClient({
+  baseUrl: "https://agentpay-gateway.vercel.app"
+});
+
+const resources = await agentpay.listResources();
+const api = resources.find((resource) => resource.accessClass === "premium_api");
+const purchase = await agentpay.prepareResourcePurchase({
+  resourceId: api!.id
+});
+
+// The SDK does not create this proof. Produce it with an external x402 wallet,
+// Circle CLI flow, or payment client using purchase.challenge.
+const paymentProof = process.env.X402_PAYMENT_PROOF!;
+
+const result = await agentpay.requestManifestResource({
+  manifest: purchase.manifest,
+  paymentProof,
+  idempotencyKey: "agent-run-123"
+});
+```
+
+Agents can also discover paid resources without the SDK through:
+
+```text
+GET /.well-known/agentpay/resources.json
+GET /api/resources/:resourceId/manifest
+```
+
+Providers can protect their own endpoint with the same access-class language:
+
+```ts
+import { protect } from "@agentpay/sdk";
+
+export const GET = protect(handler, {
+  accessClass: "premium_api",
+  price: "0.001 USDC",
+  network: "eip155:5042002",
+  seller: process.env.SELLER_ADDRESS!,
+  resourceId: "premium-weather-api",
+  verifierUrl: process.env.AGENTPAY_VERIFIER_URL!
+});
+```
+
+In production, `protect()` refuses to execute the protected handler unless `verifierUrl` is configured. This prevents a resource server from treating a merely present payment header as proof of settlement.
 
 ## Full integration prompt
 
 ```text
-Research Arc nanopayment opportunities for creators and publishers. You have a 0.05 USDC budget. Decide which paid tools, APIs, datasets, crawls, delegated agents, memory, inference, RSS paywalls, searches and docs are worth buying. Produce an answer with paid citations, skipped sources, total spend, budget efficiency and creator/provider earnings.
+Evaluate the full nanopayment access catalog on Arc: premium API call, MCP server/tool call, web content or publisher source, agent-to-agent service, and usage-based service access. Let the agent decide what is worth paying for, what should be skipped, and what can be reused from cache. Show total spend, fulfillment proof, citation receipts, and provider earnings.
 ```
 
 ## Verification
@@ -145,6 +199,6 @@ pnpm build
 
 ## Repo candidates checked
 
-- Used: `circlefin/arc-nanopayments` as the payment-flow reference, Crawl4AI as the worker target, Datasette/SearXNG/APISIX-style proxying, agent delegation, memory retrieval, inference endpoints and publisher/RSS paywall adapters.
-- Considered but skipped: native APISIX/Datasette plugins and platform forks, because the product strategy is adapter/proxy integration.
+- Used: `circlefin/arc-nanopayments` as the payment-flow reference, API proxying, MCP tools, agent delegation, inference endpoints and publisher/RSS paywall fulfillment paths.
+- Considered but skipped: native platform plugins and platform forks, because the product strategy is a pay-per-request access gateway that external services can adopt without changing their core product.
 - Still external to the repository: live secrets, traction evidence and recorded walkthrough.

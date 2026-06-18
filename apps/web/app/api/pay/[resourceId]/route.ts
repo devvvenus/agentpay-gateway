@@ -84,20 +84,21 @@ async function handlePaidResource(request: Request, { params }: { params: Promis
         allowedHosts: allowedHostsFromEnv()
       }
     );
-    store.updatePaymentEventStatus(verifiedPayment.paymentIdentifier, "settled", {
+    const deliveredPayment = store.updatePaymentEventStatus(verifiedPayment.paymentIdentifier, "settled", {
       fulfillmentStatus: "delivered",
       fulfilledAt: nowIso()
-    });
+    }) ?? verifiedPayment;
+    Object.assign(verifiedPayment, deliveredPayment);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Adapter execution failed";
-    store.updatePaymentEventStatus(verifiedPayment.paymentIdentifier, "settled", {
+    const failedPayment = store.updatePaymentEventStatus(verifiedPayment.paymentIdentifier, "settled", {
       fulfillmentStatus: "failed",
       fulfillmentFailedAt: nowIso(),
       adapterError: message
-    });
+    }) ?? verifiedPayment;
     return Response.json(
       {
-        payment: verifiedPayment,
+        payment: failedPayment,
         error: "Paid resource fulfillment failed",
         adapterError: message
       },

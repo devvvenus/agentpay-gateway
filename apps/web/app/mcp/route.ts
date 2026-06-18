@@ -1,5 +1,5 @@
 import { allowedHostsFromEnv, createAdapter } from "@agentpay/adapters";
-import { createId, nowIso } from "@agentpay/shared";
+import { type AdapterResult, createId, nowIso } from "@agentpay/shared";
 import { getPaymentService, getStore, jsonError } from "../../lib/runtime";
 
 type JsonRpcRequest = {
@@ -22,7 +22,7 @@ export async function POST(request: Request) {
       result: {
         tools: store.listResources().map((resource) => ({
           name: resource.id,
-          description: `${resource.name}: ${resource.priceUsdc.toFixed(6)} USDC via ${resource.adapterType}`,
+          description: `${resource.name}: ${resource.priceUsdc.toFixed(6)} USDC via ${resource.accessClass}`,
           inputSchema: {
             type: "object",
             properties: {
@@ -92,24 +92,51 @@ export async function POST(request: Request) {
   const adapter = createAdapter(resource.adapterType);
   const payload = (body.params?.arguments as Record<string, unknown> | undefined) ?? {};
   const quote = await adapter.quote({ resource, config, payload });
-  const result = await adapter.execute(
-    { resource, config, payload },
-    {
-      resource,
-      quote,
-      payment: verifiedPayment,
-      provider,
-      now: nowIso(),
-      allowedHosts: allowedHostsFromEnv()
-    }
-  );
+  let result: AdapterResult;
+  try {
+    result = await adapter.execute(
+      { resource, config, payload },
+      {
+        resource,
+        quote,
+        payment: verifiedPayment,
+        provider,
+        now: nowIso(),
+        allowedHosts: allowedHostsFromEnv()
+      }
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Adapter execution failed";
+    const failed = store.updatePaymentEventStatus(verifiedPayment.paymentIdentifier, "settled", {
+      fulfillmentStatus: "failed",
+      fulfillmentFailedAt: nowIso(),
+      adapterError: message
+    });
+    return Response.json(
+      {
+        jsonrpc: "2.0",
+        id: body.id,
+        error: {
+          code: -32003,
+          message: "Paid MCP fulfillment failed",
+          data: failed ?? verifiedPayment
+        }
+      },
+      { status: 502 }
+    );
+  }
+  const deliveredPayment =
+    store.updatePaymentEventStatus(verifiedPayment.paymentIdentifier, "settled", {
+      fulfillmentStatus: "delivered",
+      fulfilledAt: nowIso()
+    }) ?? verifiedPayment;
   store.addReceipt({
     id: createId("rcpt"),
-    paymentEventId: verifiedPayment.id,
+    paymentEventId: deliveredPayment.id,
     resourceId: resource.id,
     receipt: {
-      paymentIdentifier: verifiedPayment.paymentIdentifier,
-      amountUsdc: verifiedPayment.amountUsdc,
+      paymentIdentifier: deliveredPayment.paymentIdentifier,
+      amountUsdc: deliveredPayment.amountUsdc,
       adapterType: resource.adapterType,
       citations: result.citations
     },

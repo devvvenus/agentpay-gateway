@@ -1,11 +1,13 @@
 import { getStore } from "../../../lib/runtime";
+import { baseUrlFromRequest, buildResourceManifest, upstreamForConfig } from "../../../lib/resource-manifest";
 
-export async function GET() {
+export async function GET(request: Request) {
   const store = await getStore();
   const resources = store.listResources();
   const payments = store.listPaymentEvents();
   const receipts = store.listReceipts();
   const earnings = store.listProviderEarnings();
+  const baseUrl = baseUrlFromRequest(request);
   return Response.json({
     resources,
     providers: store.listProviders().map((provider) => {
@@ -28,7 +30,10 @@ export async function GET() {
       const resourceReceipts = receipts.filter((receipt) => receipt.resourceId === resource.id);
       return {
         resourceId: resource.id,
+        accessClass: resource.accessClass,
         adapterType: resource.adapterType,
+        config,
+        manifestUrl: `${baseUrl}/api/resources/${encodeURIComponent(resource.id)}/manifest`,
         upstream: upstreamForConfig(config),
         paidCalls: resourcePayments.length,
         revenueUsdc: round6(
@@ -51,28 +56,38 @@ export async function GET() {
       settledPayments: payments.filter((payment) => payment.status === "settled").length,
       receiptCount: receipts.length
     },
+    manifests: resources
+      .map((resource) => {
+        const provider = store.getProvider(resource.providerId);
+        if (!provider) return null;
+        return buildResourceManifest({
+          resource,
+          provider,
+          config: store.getAdapterConfig(resource.id)?.config,
+          baseUrl
+        });
+      })
+      .filter(Boolean),
     trust: [
       { label: "Testnet-only guard", status: "active", detail: "Mainnet stays blocked unless ALLOW_MAINNET=true." },
-      { label: "SSRF allowlist", status: "active", detail: "Adapters can only call approved upstream hosts." },
+      { label: "SSRF allowlist", status: "active", detail: "Paid access fulfillment can only call approved upstream hosts." },
       { label: "Replay protection", status: "active", detail: "Repeated payment identifiers do not duplicate earnings." },
-      { label: "Fulfillment status", status: "active", detail: "Delivered and failed adapter execution are recorded separately." }
+      { label: "Fulfillment status", status: "active", detail: "Delivered and failed access requests are recorded separately." }
     ],
     sdkExample: [
-      "import { protect } from '@agentpay/sdk';",
+      "import { createAgentPayClient } from '@agentpay/sdk';",
       "",
-      "export const GET = protect(handler, {",
-      "  price: '0.001 USDC',",
-      "  network: 'eip155:5042002',",
-      "  seller: process.env.SELLER_ADDRESS!,",
-      "  resourceId: 'premium_api'",
+      "const agentpay = createAgentPayClient({ baseUrl: 'https://agentpay-gateway.vercel.app' });",
+      "const purchase = await agentpay.prepareResourcePurchase({ resourceId: 'res_api_proxy' });",
+      "const paymentProof = await wallet.createX402Payment(purchase.challenge);",
+      "",
+      "const result = await agentpay.requestManifestResource({",
+      "  manifest: purchase.manifest,",
+      "  paymentProof,",
+      "  idempotencyKey: 'agent-run-123'",
       "});"
     ].join("\n")
   });
-}
-
-function upstreamForConfig(config: Record<string, unknown>) {
-  const value = config.serverUrl || config.targetUrl || config.baseUrl || config.workerUrl || config.sourceUrl;
-  return typeof value === "string" ? value : "configured in provider resource";
 }
 
 function round6(value: number) {

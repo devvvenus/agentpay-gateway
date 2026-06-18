@@ -1,5 +1,6 @@
 import {
   type AdapterConfig,
+  type AccessClass,
   type AgentDecision,
   type AgentRun,
   type AgentRunOutput,
@@ -48,11 +49,13 @@ export class AgentPayStore {
   private receipts = new Map<string, Receipt>();
   private earnings = new Map<string, ProviderEarning>();
   private cachedArtifacts = new Map<string, CachedArtifact>();
+  private seedResourceIds = new Set<string>();
   private onChange: ((snapshot: StoreSnapshot) => void) | undefined;
 
   constructor(seed?: StoreSeed, snapshot?: StoreSnapshot, onChange?: (snapshot: StoreSnapshot) => void) {
     this.onChange = onChange;
     if (seed) {
+      this.seedResourceIds = new Set(seed.resources.map((resource) => resource.id));
       for (const provider of seed.providers) this.providers.set(provider.id, provider);
       for (const resource of seed.resources) this.resources.set(resource.id, resource);
       for (const config of seed.adapterConfigs) this.adapterConfigs.set(config.resourceId, config);
@@ -70,6 +73,7 @@ export class AgentPayStore {
 
   upsertProvider(provider: Provider): Provider {
     this.providers.set(provider.id, provider);
+    this.persist();
     return provider;
   }
 
@@ -84,6 +88,7 @@ export class AgentPayStore {
   upsertResource(resource: Resource, config: AdapterConfig): Resource {
     this.resources.set(resource.id, resource);
     this.adapterConfigs.set(resource.id, config);
+    this.persist();
     return resource;
   }
 
@@ -174,14 +179,19 @@ export class AgentPayStore {
       }
     };
     this.paymentEvents.set(existing.id, updated);
-    const earning = [...this.earnings.values()]
-      .filter(
-        (candidate) =>
-          candidate.resourceId === updated.resourceId &&
-          candidate.amountUsdc === updated.amountUsdc &&
-          candidate.settlementStatus === "pending"
-      )
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+    const earning =
+      [...this.earnings.values()].find(
+        (candidate) => candidate.paymentEventId === updated.id && candidate.settlementStatus === "pending"
+      ) ??
+      [...this.earnings.values()]
+        .filter(
+          (candidate) =>
+            !candidate.paymentEventId &&
+            candidate.resourceId === updated.resourceId &&
+            candidate.amountUsdc === updated.amountUsdc &&
+            candidate.settlementStatus === "pending"
+        )
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
     if (earning) {
       this.earnings.set(earning.id, {
         ...earning,
@@ -250,8 +260,14 @@ export class AgentPayStore {
 
   private hydrate(snapshot?: StoreSnapshot) {
     for (const provider of snapshot?.providers ?? []) this.providers.set(provider.id, provider);
-    for (const resource of snapshot?.resources ?? []) this.resources.set(resource.id, resource);
-    for (const config of snapshot?.adapterConfigs ?? []) this.adapterConfigs.set(config.resourceId, config);
+    for (const resource of snapshot?.resources ?? []) {
+      if (this.seedResourceIds.has(resource.id) || !isSupportedResource(resource)) continue;
+      this.resources.set(resource.id, normalizeSnapshotResource(resource));
+    }
+    for (const config of snapshot?.adapterConfigs ?? []) {
+      if (this.seedResourceIds.has(config.resourceId) || !this.resources.has(config.resourceId)) continue;
+      this.adapterConfigs.set(config.resourceId, config);
+    }
     for (const run of snapshot?.runs ?? []) this.runs.set(run.id, run);
     for (const event of snapshot?.paymentEvents ?? []) this.paymentEvents.set(event.id, event);
     for (const receipt of snapshot?.receipts ?? []) this.receipts.set(receipt.id, receipt);
@@ -268,6 +284,7 @@ export class AgentPayStore {
     const settledEvents = allPaymentEvents.filter((event) => event.status === "settled");
     const failedEvents = allPaymentEvents.filter((event) => event.status === "failed" || event.status === "verification_failed");
     const pendingEvents = allPaymentEvents.filter((event) => event.status === "pending_verification");
+    const settledEarnings = [...this.earnings.values()].filter((earning) => earning.settlementStatus === "settled");
     const attemptedUsdcVolume = roundUsdc(allPaymentEvents.reduce((sum, event) => sum + event.amountUsdc, 0));
     const settledUsdcVolume = roundUsdc(settledEvents.reduce((sum, event) => sum + event.amountUsdc, 0));
     const totalUsdcVolume = settledUsdcVolume;
@@ -279,14 +296,9 @@ export class AgentPayStore {
       {
         mcp: 0,
         api_proxy: 0,
-        dataset: 0,
-        crawl: 0,
         agent_delegation: 0,
-        memory_retrieval: 0,
         inference: 0,
-        rss_paywall: 0,
-        search: 0,
-        docs_source: 0
+        rss_paywall: 0
       } as Metrics["adapterBreakdown"]
     );
 
@@ -307,16 +319,37 @@ export class AgentPayStore {
         return sum + (Array.isArray(citations) ? citations.length : 0);
       }, 0),
       totalUsdcVolume,
-      averagePaymentUsdc: paymentEvents.length ? roundUsdc(totalUsdcVolume / paymentEvents.length) : 0,
-      providersPaid: new Set([...this.earnings.values()].map((earning) => earning.providerId)).size,
+      averagePaymentUsdc: settledEvents.length ? roundUsdc(totalUsdcVolume / settledEvents.length) : 0,
+      providersPaid: new Set(settledEarnings.map((earning) => earning.providerId)).size,
       adapterBreakdown
     };
   }
 }
 
+function normalizeSnapshotResource(resource: Resource): Resource {
+  if (resource.accessClass) return resource;
+  return {
+    ...resource,
+    accessClass: accessClassForAdapter(resource.adapterType)
+  };
+}
+
+function isSupportedResource(resource: Resource): boolean {
+  return ["api_proxy", "mcp", "rss_paywall", "agent_delegation", "inference"].includes(resource.adapterType);
+}
+
+function accessClassForAdapter(adapterType: Resource["adapterType"]): AccessClass {
+  if (adapterType === "api_proxy") return "premium_api";
+  if (adapterType === "mcp") return "mcp_tool";
+  if (adapterType === "rss_paywall") return "publisher_content";
+  if (adapterType === "agent_delegation") return "agent_service";
+  return "usage_service";
+}
+
 export function emptyRunOutput(): AgentRunOutput {
   return {
     answer: "",
+    policy: null,
     paidCitations: [],
     skippedSources: [],
     payments: [],

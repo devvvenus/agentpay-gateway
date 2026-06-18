@@ -8,8 +8,8 @@ const smokeEnv: NodeJS.ProcessEnv = {
 };
 const store = new AgentPayStore(seedData(smokeEnv));
 const resources = store.listResources();
-if (resources.length !== 10) {
-  throw new Error(`Expected 10 resources, got ${resources.length}`);
+if (resources.length !== 5) {
+  throw new Error(`Expected 5 visible access-class resources, got ${resources.length}`);
 }
 
 const resource = resources[0];
@@ -27,7 +27,7 @@ const paymentService = new PaymentService(store, {
   appUrl: "http://localhost:3000",
   facilitatorUrl: "http://localhost:9999/verify"
 });
-const challenge = paymentService.challenge(resource, "http://localhost:3000/api/pay/res_mcp_tools", provider);
+const challenge = paymentService.challenge(resource, `http://localhost:3000/api/pay/${resource.id}`, provider);
 if (challenge.status !== 402) {
   throw new Error("Expected 402 challenge");
 }

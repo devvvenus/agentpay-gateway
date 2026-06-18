@@ -1,5 +1,5 @@
 import type { AdapterType } from "@agentpay/shared";
-import { runAgent } from "@agentpay/agent";
+import { runAgent, type PaymentPolicyInput } from "@agentpay/agent";
 import { loadPaymentConfig } from "@agentpay/payments";
 import { executePaidResourceWithCircle } from "../../../../lib/circle-paid-resource";
 import { getStore, jsonError } from "../../../../lib/runtime";
@@ -15,6 +15,7 @@ export async function POST(request: Request) {
         budgetUsdc?: number;
         allowedResourceIds?: string[];
         allowedAdapterTypes?: AdapterType[];
+        policy?: PaymentPolicyInput;
       }
     | null;
 
@@ -29,6 +30,7 @@ export async function POST(request: Request) {
       store: await getStore(),
       ...(body.allowedResourceIds ? { allowedResourceIds: body.allowedResourceIds } : {}),
       ...(body.allowedAdapterTypes ? { allowedAdapterTypes: body.allowedAdapterTypes } : {}),
+      ...(body.policy ? { policy: body.policy } : {}),
       ...(loadPaymentConfig().mode === "x402" ? { executePaidResource: executePaidResourceWithCircle } : {})
     });
 

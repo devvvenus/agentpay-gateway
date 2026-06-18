@@ -32,7 +32,9 @@ export function jsonError(message: string, status = 400): Response {
 
 export function requireAdminRequest(request: Request): Response | undefined {
   const key = process.env.AGENTPAY_ADMIN_API_KEY;
-  if (!key) return undefined;
+  if (!key) {
+    return process.env.NODE_ENV === "production" ? jsonError("AGENTPAY_ADMIN_API_KEY is not configured", 503) : undefined;
+  }
   const provided = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") || request.headers.get("x-agentpay-admin-key");
   if (!provided || !safeEqual(provided, key)) {
     return jsonError("Admin API key required", 401);

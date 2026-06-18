@@ -9,6 +9,7 @@ import {
   type AgentRun,
   type Citation,
   type PaymentEvent,
+  type PaymentPolicySummary,
   type Provider,
   type Resource,
   cacheKeyFor,
@@ -27,14 +28,38 @@ export interface RunAgentInput {
   allowedAdapterTypes?: AdapterType[];
   allowedHosts?: string[];
   minScore?: number;
+  policy?: PaymentPolicyInput;
   executePaidResource?: (input: PaidResourceExecutionInput) => Promise<PaidResourceExecutionResult>;
   onEvent?: (event: AgentRunEvent) => void | Promise<void>;
+}
+
+export type CacheMode = "reuse" | "refresh" | "ignore";
+
+export interface PaymentPolicyInput {
+  maxSpendUsdc?: number;
+  maxPricePerCallUsdc?: number;
+  allowedAccessClasses?: Resource["accessClass"][];
+  trustedProviderIds?: string[];
+  requireCitations?: boolean;
+  cacheMode?: CacheMode;
+  minScore?: number;
+}
+
+export interface NormalizedPaymentPolicy {
+  maxSpendUsdc: number;
+  maxPricePerCallUsdc?: number;
+  allowedAccessClasses?: Set<Resource["accessClass"]>;
+  trustedProviderIds?: Set<string>;
+  requireCitations: boolean;
+  cacheMode: CacheMode;
+  minScore: number;
 }
 
 export interface AgentRunEvent {
   type:
     | "run_started"
     | "resources_loaded"
+    | "policy_loaded"
     | "resource_scored"
     | "cache_hit"
     | "resource_skipped"
@@ -113,28 +138,35 @@ export function scoreResource(input: {
 export async function runAgent(input: RunAgentInput): Promise<AgentRun> {
   const paymentService = new PaymentService(input.store);
   const allowedHosts = input.allowedHosts ?? allowedHostsFromEnv();
-  const minScore = input.minScore ?? 0.58;
+  const policy = normalizePaymentPolicy(input);
+  const minScore = policy.minScore;
   const run = input.store.createRun({
     prompt: input.prompt,
-    budgetUsdc: input.budgetUsdc
+    budgetUsdc: policy.maxSpendUsdc
   });
   run.status = "running";
   input.store.updateRun(run);
   await emit(input, {
     type: "run_started",
-    message: `run ${run.id} started with ${input.budgetUsdc.toFixed(6)} USDC budget`
+    message: `run ${run.id} started with ${policy.maxSpendUsdc.toFixed(6)} USDC policy budget`
+  });
+  await emit(input, {
+    type: "policy_loaded",
+    message: policySummary(policy)
   });
 
   const resources = input.store
     .listResources()
     .filter((resource) => !input.allowedResourceIds || input.allowedResourceIds.includes(resource.id))
-    .filter((resource) => !input.allowedAdapterTypes || input.allowedAdapterTypes.includes(resource.adapterType));
+    .filter((resource) => !input.allowedAdapterTypes || input.allowedAdapterTypes.includes(resource.adapterType))
+    .filter((resource) => !policy.allowedAccessClasses || policy.allowedAccessClasses.has(resource.accessClass))
+    .filter((resource) => !policy.trustedProviderIds || policy.trustedProviderIds.has(resource.providerId));
   await emit(input, {
     type: "resources_loaded",
     message: `${resources.length} eligible paid resources loaded`
   });
 
-  let budgetRemaining = input.budgetUsdc;
+  let budgetRemaining = policy.maxSpendUsdc;
   const payments: PaymentEvent[] = [];
   const adapterResults: AdapterResult[] = [];
   const paidCitations: Citation[] = [];
@@ -152,7 +184,7 @@ export async function runAgent(input: RunAgentInput): Promise<AgentRun> {
     const config = input.store.getAdapterConfig(resource.id)?.config ?? {};
     const payload = payloadForAdapter(resource.adapterType, input.prompt, config);
     const cacheKey = cacheKeyFor(resource.id, payload);
-    const cached = input.store.getCachedArtifact(resource.id, cacheKey);
+    const cached = policy.cacheMode === "reuse" ? input.store.getCachedArtifact(resource.id, cacheKey) : undefined;
     const dynamicSignals = deriveResourceSignals({
       prompt: input.prompt,
       resource,
@@ -190,6 +222,34 @@ export async function runAgent(input: RunAgentInput): Promise<AgentRun> {
         resourceId: resource.id,
         adapterType: resource.adapterType,
         message: `cache hit for ${resource.name}; no new payment needed`
+      });
+      continue;
+    }
+
+    if (policy.requireCitations && !resourceSupportsCitations(resource)) {
+      const reason = `Skipped by policy: citations are required and ${resource.name} does not advertise citation receipts.`;
+      const decision = recordDecision(input.store, run.id, resource.id, "skip", score.score, reason);
+      decisions.push(decision);
+      skippedSources.push({ resourceId: resource.id, reason });
+      await emit(input, {
+        type: "resource_skipped",
+        resourceId: resource.id,
+        adapterType: resource.adapterType,
+        message: reason
+      });
+      continue;
+    }
+
+    if (policy.maxPricePerCallUsdc !== undefined && resource.priceUsdc > policy.maxPricePerCallUsdc) {
+      const reason = `Skipped by policy: price ${resource.priceUsdc.toFixed(6)} exceeds max price per call ${policy.maxPricePerCallUsdc.toFixed(6)}.`;
+      const decision = recordDecision(input.store, run.id, resource.id, "skip", score.score, reason);
+      decisions.push(decision);
+      skippedSources.push({ resourceId: resource.id, reason });
+      await emit(input, {
+        type: "resource_skipped",
+        resourceId: resource.id,
+        adapterType: resource.adapterType,
+        message: reason
       });
       continue;
     }
@@ -232,7 +292,7 @@ export async function runAgent(input: RunAgentInput): Promise<AgentRun> {
       message: `paying ${resource.priceUsdc.toFixed(6)} USDC for ${resource.name}`
     });
     if (!input.executePaidResource && paymentService.requiresServerSettlement()) {
-      throw new Error("x402 agent runs require the paid-resource executor so settlement is verified before adapter execution.");
+      throw new Error("x402 agent runs require the paid-resource executor so settlement is verified before paid access fulfillment.");
     }
     const paidExecution = input.executePaidResource
       ? await input.executePaidResource({
@@ -339,7 +399,7 @@ export async function runAgent(input: RunAgentInput): Promise<AgentRun> {
         type: "adapter_completed",
         resourceId: resource.id,
         adapterType: resource.adapterType,
-        message: `${resource.adapterType} adapter completed with ${result.status}`
+        message: `${resource.name} access fulfilled with ${result.status}`
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown adapter error";
@@ -383,13 +443,15 @@ export async function runAgent(input: RunAgentInput): Promise<AgentRun> {
       decisions,
       resources,
       budgetUsdc: input.budgetUsdc,
-      totalSpendUsdc
+      totalSpendUsdc,
+      policy
     }),
+    policy: policyOutput(policy),
     paidCitations,
     skippedSources,
     payments,
     decisions,
-    budgetEfficiency: input.budgetUsdc > 0 ? roundUsdc((input.budgetUsdc - totalSpendUsdc) / input.budgetUsdc) : 0,
+    budgetEfficiency: policy.maxSpendUsdc > 0 ? roundUsdc((policy.maxSpendUsdc - totalSpendUsdc) / policy.maxSpendUsdc) : 0,
     adapterResults
   };
   input.store.updateRun(run);
@@ -402,6 +464,59 @@ export async function runAgent(input: RunAgentInput): Promise<AgentRun> {
 
 async function emit(input: RunAgentInput, event: AgentRunEvent) {
   await input.onEvent?.(event);
+}
+
+function normalizePaymentPolicy(input: RunAgentInput): NormalizedPaymentPolicy {
+  const requestedMaxSpend = input.policy?.maxSpendUsdc;
+  const maxSpendUsdc =
+    typeof requestedMaxSpend === "number" && Number.isFinite(requestedMaxSpend) && requestedMaxSpend > 0
+      ? Math.min(input.budgetUsdc, requestedMaxSpend)
+      : input.budgetUsdc;
+  const maxPricePerCallUsdc = input.policy?.maxPricePerCallUsdc;
+  return {
+    maxSpendUsdc,
+    ...(typeof maxPricePerCallUsdc === "number" && Number.isFinite(maxPricePerCallUsdc) && maxPricePerCallUsdc > 0
+      ? { maxPricePerCallUsdc }
+      : {}),
+    ...(input.policy?.allowedAccessClasses?.length
+      ? { allowedAccessClasses: new Set(input.policy.allowedAccessClasses) }
+      : {}),
+    ...(input.policy?.trustedProviderIds?.length ? { trustedProviderIds: new Set(input.policy.trustedProviderIds) } : {}),
+    requireCitations: input.policy?.requireCitations === true,
+    cacheMode: input.policy?.cacheMode ?? "reuse",
+    minScore: input.policy?.minScore ?? input.minScore ?? 0.58
+  };
+}
+
+function policySummary(policy: NormalizedPaymentPolicy) {
+  const parts = [
+    `policy max spend ${policy.maxSpendUsdc.toFixed(6)} USDC`,
+    `min score ${policy.minScore.toFixed(2)}`,
+    `cache ${policy.cacheMode}`
+  ];
+  if (policy.maxPricePerCallUsdc !== undefined) {
+    parts.push(`max price/call ${policy.maxPricePerCallUsdc.toFixed(6)} USDC`);
+  }
+  if (policy.allowedAccessClasses) parts.push(`classes ${[...policy.allowedAccessClasses].join(",")}`);
+  if (policy.trustedProviderIds) parts.push(`trusted providers ${policy.trustedProviderIds.size}`);
+  if (policy.requireCitations) parts.push("citations required");
+  return parts.join("; ");
+}
+
+function policyOutput(policy: NormalizedPaymentPolicy): PaymentPolicySummary {
+  return {
+    maxSpendUsdc: policy.maxSpendUsdc,
+    ...(policy.maxPricePerCallUsdc !== undefined ? { maxPricePerCallUsdc: policy.maxPricePerCallUsdc } : {}),
+    allowedAccessClasses: policy.allowedAccessClasses ? [...policy.allowedAccessClasses] : [],
+    trustedProviderCount: policy.trustedProviderIds?.size ?? 0,
+    requireCitations: policy.requireCitations,
+    cacheMode: policy.cacheMode,
+    minScore: policy.minScore
+  };
+}
+
+function resourceSupportsCitations(resource: Resource) {
+  return resource.accessClass === "publisher_content" || resource.accessClass === "mcp_tool";
 }
 
 function recordDecision(
@@ -426,23 +541,16 @@ function recordDecision(
 function payloadForAdapter(adapterType: AdapterType, prompt: string, config: Record<string, unknown>): Record<string, unknown> {
   switch (adapterType) {
     case "mcp":
-      return { toolName: prompt.toLowerCase().includes("dataset") ? "paid_dataset_query" : "tools/list" };
-    case "dataset":
-      return { sql: typeof config.sql === "string" ? config.sql : "select 1 as result" };
-    case "crawl":
-      return { url: typeof config.url === "string" ? config.url : "https://docs.arc.io/" };
+      return {
+        toolName: prompt.toLowerCase().includes("status") ? "paid_access_status" : "paid_source_fetch",
+        sourceUrl: typeof config.sourceUrl === "string" ? config.sourceUrl : "https://docs.x402.org/"
+      };
     case "agent_delegation":
       return { prompt, task: "delegate_specialist_research" };
-    case "memory_retrieval":
-      return { query: prompt };
     case "inference":
       return { prompt };
     case "rss_paywall":
       return { feedUrl: "https://www.arc.network/blog/rss.xml" };
-    case "search":
-      return { query: prompt };
-    case "docs_source":
-      return { sourceUrl: typeof config.sourceUrl === "string" ? config.sourceUrl : "https://docs.arc.io/" };
     case "api_proxy":
       return { prompt };
     default:
@@ -468,7 +576,7 @@ function deriveResourceSignals(input: {
   const resourceTerms = tokenize(resourceText);
   const overlap = promptTerms.filter((term) => resourceTerms.includes(term));
   const semanticFit = promptTerms.length ? clampScore(overlap.length / Math.min(promptTerms.length, 10)) : 0.25;
-  const citationBoost = ["docs_source", "rss_paywall", "crawl", "search"].includes(input.resource.adapterType) ? 0.08 : 0;
+  const citationBoost = input.resource.adapterType === "rss_paywall" || input.resource.adapterType === "mcp" ? 0.08 : 0;
   const liveSourceBoost =
     typeof input.config["sourceUrl"] === "string" ||
     typeof input.config["targetUrl"] === "string" ||
@@ -510,6 +618,7 @@ function buildAnswer(input: {
   resources: Resource[];
   budgetUsdc: number;
   totalSpendUsdc: number;
+  policy: NormalizedPaymentPolicy;
 }): string {
   const resourceById = new Map(input.resources.map((resource) => [resource.id, resource]));
   const decisionByResource = new Map(input.decisions.map((decision) => [decision.resourceId, decision]));
@@ -523,7 +632,7 @@ function buildAnswer(input: {
         .map((payment) => {
           const resource = resourceById.get(payment.resourceId);
           const decision = decisionByResource.get(payment.resourceId);
-          return `- ${resource?.name ?? payment.resourceId} (${payment.adapterType}) paid ${payment.amountUsdc.toFixed(6)} USDC; status ${payment.status}; reason: ${decision?.reason ?? "paid after scoring"}.`;
+          return `- ${resource?.name ?? payment.resourceId} (${accessClassLabel(resource?.accessClass)}) paid ${payment.amountUsdc.toFixed(6)} USDC; status ${payment.status}; reason: ${decision?.reason ?? "paid after scoring"}.`;
         })
         .join("\n")
     : "- No paid resources were purchased.";
@@ -539,19 +648,29 @@ function buildAnswer(input: {
         .join("\n")
     : "- No paid citations were produced.";
   const errorLine = failed.length
-    ? `Adapter errors: ${failed.map((result) => `${resourceById.get(result.resourceId)?.name ?? result.resourceId}: ${String((result.data as { error?: unknown }).error ?? "error")}`).join("; ")}`
-    : "Adapter errors: none.";
+    ? `Fulfillment errors: ${failed.map((result) => `${resourceById.get(result.resourceId)?.name ?? result.resourceId}: ${String((result.data as { error?: unknown }).error ?? "error")}`).join("; ")}`
+    : "Fulfillment errors: none.";
 
   return [
     `Task: ${input.prompt}`,
     `Budget: ${input.budgetUsdc.toFixed(6)} USDC; spent ${input.totalSpendUsdc.toFixed(6)} USDC; saved ${saved.toFixed(6)} USDC; budget efficiency ${(efficiency * 100).toFixed(1)}%.`,
+    `Payment policy: max spend ${input.policy.maxSpendUsdc.toFixed(6)} USDC; max price/call ${input.policy.maxPricePerCallUsdc !== undefined ? `${input.policy.maxPricePerCallUsdc.toFixed(6)} USDC` : "none"}; cache ${input.policy.cacheMode}; min score ${input.policy.minScore.toFixed(2)}; citations ${input.policy.requireCitations ? "required" : "optional"}.`,
     `Paid resources (${input.payments.length}):`,
     paidLines,
     `Skipped resources (${input.skippedSources.length}):`,
     skippedLines,
     `Paid citations (${citations.length}):`,
     citationLines,
-    `Adapters completed: ${successful.length}/${input.adapterResults.length}. ${errorLine}`,
+    `Access fulfilled: ${successful.length}/${input.adapterResults.length}. ${errorLine}`,
     "Final recommendation: keep paying only for resources that improve confidence, freshness, citation quality or provider-specific evidence; skip resources that do not clear the dynamic value threshold."
   ].join("\n");
+}
+
+function accessClassLabel(accessClass?: string) {
+  if (accessClass === "premium_api") return "Premium API call";
+  if (accessClass === "mcp_tool") return "MCP tool call";
+  if (accessClass === "publisher_content") return "Publisher content";
+  if (accessClass === "agent_service") return "Agent service";
+  if (accessClass === "usage_service") return "Usage-based service";
+  return "Paid access";
 }

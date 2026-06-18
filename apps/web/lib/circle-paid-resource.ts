@@ -12,12 +12,13 @@ type PaidExecutionResponse = {
 };
 
 export async function executePaidResourceWithCircle(input: {
-  resource: { id: string };
+  resource: { id: string; priceUsdc?: number };
   payload: Record<string, unknown>;
   prompt: string;
 }): Promise<PaidExecutionResponse> {
   const config = loadPaymentConfig();
   const url = new URL(`/api/pay/${input.resource.id}`, config.appUrl);
+  const maxAmount = paymentLimitForResource(input.resource.priceUsdc);
 
   for (const [key, value] of Object.entries(input.payload)) {
     if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
@@ -30,7 +31,8 @@ export async function executePaidResourceWithCircle(input: {
     return executeViaRemotePayer({
       payerUrl: process.env.AGENTPAY_PAYER_URL,
       targetUrl: url.toString(),
-      buyerAddress: config.buyerAddress
+      buyerAddress: config.buyerAddress,
+      maxAmount
     });
   }
 
@@ -43,7 +45,7 @@ export async function executePaidResourceWithCircle(input: {
     "--chain",
     "ARC-TESTNET",
     "--max-amount",
-    "0.01",
+    maxAmount,
     "--output",
     "json"
   ]);
@@ -68,6 +70,7 @@ async function executeViaRemotePayer(input: {
   payerUrl: string;
   targetUrl: string;
   buyerAddress: string;
+  maxAmount: string;
 }): Promise<PaidExecutionResponse> {
   const response = await fetch(input.payerUrl, {
     method: "POST",
@@ -79,7 +82,7 @@ async function executeViaRemotePayer(input: {
       targetUrl: input.targetUrl,
       buyerAddress: input.buyerAddress,
       chain: "ARC-TESTNET",
-      maxAmount: "0.01"
+      maxAmount: input.maxAmount
     })
   });
   const parsed = (await response.json().catch(() => ({}))) as {
@@ -98,6 +101,13 @@ async function executeViaRemotePayer(input: {
   return parsed.verification
     ? { payment: parsed.payment, result: parsed.result, verification: parsed.verification }
     : { payment: parsed.payment, result: parsed.result };
+}
+
+function paymentLimitForResource(priceUsdc?: number): string {
+  if (typeof priceUsdc === "number" && Number.isFinite(priceUsdc) && priceUsdc > 0) {
+    return priceUsdc.toFixed(6);
+  }
+  return "0.010000";
 }
 
 function formatRemotePayerError(error: unknown, status: number): string {
