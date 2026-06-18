@@ -269,15 +269,19 @@ const inferenceAdapter: PaidResourceAdapter = {
     const model = readConfigString(input.config, "model") || "qwen3:14b";
     const prompt = input.prompt || readString(input.payload, "prompt") || "Arc x402 nanopayment reasoning task";
     assertAllowedUrl(targetUrl, context.allowedHosts);
-    const response = await fetchWithTimeout(targetUrl, {
-      method: "POST",
-      headers: gatewayHeaders(input.resource.id, context.payment.paymentIdentifier),
-      body: JSON.stringify({
-        prompt,
-        model,
-        paymentIdentifier: context.payment.paymentIdentifier
-      })
-    });
+    const response = await fetchWithTimeout(
+      targetUrl,
+      {
+        method: "POST",
+        headers: gatewayHeaders(input.resource.id, context.payment.paymentIdentifier),
+        body: JSON.stringify({
+          prompt,
+          model,
+          paymentIdentifier: context.payment.paymentIdentifier
+        })
+      },
+      envNumber("AGENTPAY_INFERENCE_PROVIDER_TIMEOUT_SECONDS", 90) * 1000
+    );
     const data = await response.json().catch(async () => ({ text: await response.text() }));
     return ok(input, { status: response.status, data });
   }
@@ -438,9 +442,16 @@ function assertAllowedUrl(rawUrl: string, allowedHosts: string[]): void {
   }
 }
 
-async function fetchWithTimeout(url: string, init?: RequestInit): Promise<Response> {
+function envNumber(name: string, defaultValue: number): number {
+  const raw = process.env[name];
+  if (!raw) return defaultValue;
+  const value = Number(raw);
+  return Number.isFinite(value) && value > 0 ? value : defaultValue;
+}
+
+async function fetchWithTimeout(url: string, init?: RequestInit, timeoutMs = 30_000): Promise<Response> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 30_000);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(url, { ...init, signal: controller.signal });
     if (!response.ok) {
