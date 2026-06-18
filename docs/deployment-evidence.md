@@ -13,8 +13,10 @@ Use this file as the final pre-submission evidence list. Do not mark an item com
 
 - Vercel production deploy is live for the dashboard and Next.js API routes.
 - VPS upstream fulfillment services are live for worker-backed MCP, delegation, inference and publisher content calls.
-- Server-side agent payments currently require a Circle CLI-authenticated runtime. Vercel serverless does not include the local Circle CLI session, so the final payer execution path must run on a Circle-authenticated backend or be replaced with a Circle API-backed payer before a judge-facing full paid run.
-- The VPS payer endpoint is `/payer/pay-resource`. Vercel should set `AGENTPAY_PAYER_URL=http://49.13.60.236:8010/payer/pay-resource` and the same `AGENTPAY_PAYER_API_KEY` as the worker container. The worker container must be Circle CLI-authenticated with an Arc testnet agent wallet.
+- Server-side agent payments use the Circle CLI-authenticated VPS payer endpoint at `/payer/pay-resource`.
+- Vercel production is configured to call `AGENTPAY_PAYER_URL=http://49.13.60.236:8010/payer/pay-resource` with the same `AGENTPAY_PAYER_API_KEY` as the worker container.
+- The worker container is Circle CLI-authenticated with an Arc testnet agent wallet and runs real Ollama-backed inference using `qwen3:4b`.
+- Long-running paid inference is supported by `AGENTPAY_PAYER_REQUEST_TIMEOUT_SECONDS` on the VPS payer and `AGENTPAY_INFERENCE_PROVIDER_TIMEOUT_SECONDS` in the web adapter runtime.
 - The VPS runner mounts `$ROOT_DIR/circle-home` to `/root` so the Circle CLI testnet wallet login persists across container restarts.
 
 ## Required Environment
@@ -35,6 +37,24 @@ Use this file as the final pre-submission evidence list. Do not mark an item com
 - `AGENTPAY_WORKER_URL`
 - `AGENTPAY_PAYER_URL`
 - `AGENTPAY_PAYER_API_KEY`
+- `AGENTPAY_INFERENCE_MODEL`
+- `AGENTPAY_INFERENCE_PROVIDER_TIMEOUT_SECONDS`
+- `AGENTPAY_PAYER_REQUEST_TIMEOUT_SECONDS`
+
+## Verified Live Evidence
+
+Captured on 2026-06-18 against `https://agentpay-gateway.vercel.app`:
+
+- Production app returned HTTP `200`.
+- Resource catalog returned 5 paid resources.
+- Wallet status returned `paymentMode=x402`, `network=eip155:5042002`, wallet balance `19` USDC and gateway balance `0.889900` USDC.
+- VPS worker health returned `ok`.
+- Unpaid requests to all five protected resource endpoints returned `402 Payment Required`.
+- Full integration agent run `run_0dd4624b-39d2-4895-8701-dc481d359839` completed with 4 settled x402 payments, 4 fulfilled access requests, 0 fulfillment errors, 0.006600 USDC spent and 2 paid citations.
+- The full integration run skipped `res_agent_delegation` because its score was below the dynamic threshold; this is expected agent budget behavior, not a disabled adapter.
+- Targeted agent-to-agent run `run_1f2754fc-e22c-4bc6-9b0b-54faba33f89f` completed with 1 settled x402 payment, 1 fulfilled agent-service request, 0 fulfillment errors and 0.002200 USDC spent.
+- Latest payment record after verification showed `settled` status, `fulfillmentStatus=delivered`, server-side settlement evidence and a matching receipt/provider earning.
+- Metrics after verification: 12 agent runs, 58 settled paid calls, 2 failed paid calls from pre-fix timeout attempts, 0.094700 USDC settled volume and 6 providers paid.
 
 ## Proofs To Capture
 
@@ -47,7 +67,7 @@ Use this file as the final pre-submission evidence list. Do not mark an item com
 - Signed webhook request updating an existing payment identifier.
 - Dashboard refresh/restart showing persisted state from Supabase.
 - `pnpm typecheck`, `pnpm test`, `pnpm smoke`, `pnpm smoke:upstreams`, `pnpm build` output.
-- `pnpm smoke:upstreams` against the VPS worker passed on 2026-06-16.
+- `pnpm smoke:upstreams` against the live VPS worker passed on 2026-06-18 with `AGENTPAY_WORKER_URL=http://49.13.60.236:8010` and `AGENTPAY_INFERENCE_MODEL=qwen3:4b`.
 
 ## Three-Minute Recording Structure
 

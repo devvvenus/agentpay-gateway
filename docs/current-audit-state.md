@@ -40,15 +40,33 @@ pnpm build
 pnpm smoke:upstreams
 ```
 
-`pnpm smoke:upstreams` verified the underlying upstream fulfillment paths against running local services.
+`pnpm test` and `pnpm smoke` required sandbox-external reruns on Windows because Vitest/Vite/esbuild hit `spawn EPERM` inside the managed sandbox. `pnpm build` also required a sandbox-external rerun after a Windows/OneDrive `.next` file lock. All passed after rerun.
 
-Live verification on 2026-06-16:
+`pnpm smoke:upstreams` passed against the live VPS worker on 2026-06-18 with:
+
+```powershell
+$env:AGENTPAY_WORKER_URL='http://49.13.60.236:8010'
+$env:AGENTPAY_INFERENCE_MODEL='qwen3:4b'
+$env:AGENTPAY_ALLOWED_HOSTS='localhost,127.0.0.1,49.13.60.236,docs.arc.io,developers.circle.com,docs.x402.org,www.arc.network,arc.network'
+pnpm smoke:upstreams
+```
+
+It verified direct unpaid guards for all five worker endpoints and upstream fulfillment for MCP, premium API, agent delegation, inference and publisher content.
+
+Live verification on 2026-06-18:
 
 - Production URL: https://agentpay-gateway.vercel.app
 - Repository: https://github.com/kaos35/agentpay-gateway
 - VPS worker: `http://49.13.60.236:8010`
-- Direct live payment smoke: all paid resources returned `settled|ok`.
-- Repositioned full integration stream run `run_a4528580-b7c7-49e4-b67e-4bc07c2d36dd`: 5 paid access classes, 5 settled payments, 5 fulfilled access requests, 0 fulfillment errors, 0.008800 USDC spent, 1 paid citation.
+- Production app returned HTTP `200`.
+- Live resource catalog returned 5 paid resources.
+- Wallet status returned `paymentMode=x402`, `network=eip155:5042002`, wallet balance `19` USDC and gateway balance `0.889900` USDC.
+- VPS worker health returned `ok`.
+- Unpaid live calls to all 5 protected resources returned `402 Payment Required`.
+- Full integration run `run_0dd4624b-39d2-4895-8701-dc481d359839`: 4 settled payments, 4 fulfilled access requests, 0 fulfillment errors, 0.006600 USDC spent, 2 paid citations, 1 resource skipped by dynamic scoring.
+- Targeted agent-to-agent run `run_1f2754fc-e22c-4bc6-9b0b-54faba33f89f`: 1 settled payment, 1 fulfilled access request, 0 fulfillment errors, 0.002200 USDC spent.
+- Live metrics after verification: 12 agent runs, 58 settled paid calls, 2 failed paid calls from pre-fix timeout attempts, 0.094700 USDC settled volume, 6 providers paid.
+- VPS worker runs real Ollama-backed paid inference with `qwen3:4b`.
 
 ## Audit boundaries
 

@@ -9,6 +9,7 @@ const allowedHosts = (
   .split(",")
   .map((host) => host.trim().toLowerCase())
   .filter(Boolean);
+const workerUrl = (process.env.AGENTPAY_WORKER_URL || "http://localhost:8000").replace(/\/$/, "");
 
 const checks = [
   {
@@ -76,13 +77,13 @@ const checks = [
   }
 ];
 
-const directPremiumResponse = await fetch("http://localhost:8000/premium-api/x402-summary?sourceUrl=https%3A%2F%2Fdocs.x402.org%2F");
+const directPremiumResponse = await fetch(`${workerUrl}/premium-api/x402-summary?sourceUrl=https%3A%2F%2Fdocs.x402.org%2F`);
 if (directPremiumResponse.status !== 402) {
   throw new Error(`Premium API direct access should require payment context; got ${directPremiumResponse.status}`);
 }
 console.log("x402 Docs Premium API direct access guard passed");
 
-const directInferenceResponse = await fetch("http://localhost:8000/inference/complete", {
+const directInferenceResponse = await fetch(`${workerUrl}/inference/complete`, {
   method: "POST",
   headers: { "content-type": "application/json" },
   body: JSON.stringify({
@@ -96,7 +97,7 @@ if (directInferenceResponse.status !== 402) {
 }
 console.log("Ollama Usage-Based Inference direct access guard passed");
 
-const directDelegationResponse = await fetch("http://localhost:8000/agent/delegate", {
+const directDelegationResponse = await fetch(`${workerUrl}/agent/delegate`, {
   method: "POST",
   headers: { "content-type": "application/json" },
   body: JSON.stringify({
@@ -110,7 +111,7 @@ if (directDelegationResponse.status !== 402) {
 }
 console.log("Specialist Research Agent direct access guard passed");
 
-const directRssResponse = await fetch("http://localhost:8000/rss/paywall", {
+const directRssResponse = await fetch(`${workerUrl}/rss/paywall`, {
   method: "POST",
   headers: { "content-type": "application/json" },
   body: JSON.stringify({
@@ -124,7 +125,7 @@ if (directRssResponse.status !== 402) {
 }
 console.log("Arc Publisher Article Unlock direct access guard passed");
 
-const directMcpResponse = await fetch("http://localhost:8000/mcp", {
+const directMcpResponse = await fetch(`${workerUrl}/mcp`, {
   method: "POST",
   headers: { "content-type": "application/json" },
   body: JSON.stringify({

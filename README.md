@@ -27,7 +27,7 @@ The product should not be presented as a generic SDK, a shopping agent or an ada
 
 ## Current audit baseline
 
-As of 2026-06-16, the following commands pass locally:
+As of 2026-06-18, the following commands pass locally:
 
 ```powershell
 pnpm typecheck
@@ -39,13 +39,17 @@ pnpm smoke:upstreams
 
 `pnpm smoke:upstreams` verifies the underlying fulfillment paths against running local upstream services. Generated files such as `.next/`, `.agentpay/`, `*.log`, `*.tsbuildinfo` and `_tmp_*` are ignored and should not be used as audit evidence. See [Current audit state](docs/current-audit-state.md) for exact boundaries.
 
-Live production status on 2026-06-16:
+Live production status on 2026-06-18:
 
 - App: https://agentpay-gateway.vercel.app
 - Repository: https://github.com/kaos35/agentpay-gateway
 - Worker: `http://49.13.60.236:8010`
-- Latest repositioned full integration run: `run_a4528580-b7c7-49e4-b67e-4bc07c2d36dd`
-- Full integration result: 5 paid access classes, 5 settled x402 payments, 5 fulfillment executions, 0 fulfillment errors, 0.008800 USDC total spend, 1 paid citation.
+- Full integration agent run: `run_0dd4624b-39d2-4895-8701-dc481d359839`
+- Full integration result: 4 settled x402 payments, 4 fulfilled access requests, 0 fulfillment errors, 0.006600 USDC spent, 2 paid citations, 1 resource skipped by score.
+- Targeted agent-to-agent live run: `run_1f2754fc-e22c-4bc6-9b0b-54faba33f89f`
+- Targeted result: agent service access paid and fulfilled with 1 settled x402 payment, 0 fulfillment errors, 0.002200 USDC spent.
+- All five protected resource endpoints returned `402 Payment Required` without payment.
+- Live metrics after verification: 12 agent runs, 58 settled paid calls, 0.094700 USDC settled volume, 6 providers paid.
 
 ## Local quickstart
 

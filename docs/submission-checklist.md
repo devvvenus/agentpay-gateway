@@ -38,12 +38,16 @@ Expected result:
 - `AGENTPAY_WORKER_GATEWAY_SECRET` set to the same value in the web/API runtime and worker before exposing worker endpoints.
 - `AGENTPAY_WEBHOOK_SECRET` or `CIRCLE_WEBHOOK_SECRET` set before enabling webhook status updates.
 
-## Live verification on 2026-06-16
+## Live verification on 2026-06-18
 
-- Direct paid access test: all paid resources returned `settled|ok`.
-- Full integration run: `run_a4528580-b7c7-49e4-b67e-4bc07c2d36dd`.
-- Full integration result: 5/5 access classes paid, 5/5 access fulfillments, 0 fulfillment errors, 0.008800 USDC spent, 1 paid citation.
-- Worker payer hardening: `/payer/pay-resource` runs Circle CLI asynchronously so worker-backed MCP, delegation, inference and RSS/publisher endpoints can fulfill nested paid requests.
+- Production app returned HTTP `200`.
+- Unpaid requests to all five protected resource endpoints returned `402 Payment Required`.
+- Full integration run: `run_0dd4624b-39d2-4895-8701-dc481d359839`.
+- Full integration result: 4 settled x402 payments, 4 fulfilled access requests, 0 fulfillment errors, 0.006600 USDC spent, 2 paid citations and 1 resource skipped by dynamic scoring.
+- Targeted agent-to-agent run: `run_1f2754fc-e22c-4bc6-9b0b-54faba33f89f`.
+- Targeted agent-to-agent result: 1 settled x402 payment, 1 fulfilled access request, 0 fulfillment errors, 0.002200 USDC spent.
+- `pnpm smoke:upstreams` passed against the live VPS worker with direct unpaid guards and upstream fulfillment for all five access classes.
+- Worker payer hardening: `/payer/pay-resource` runs Circle CLI on the VPS and uses a configurable paid request timeout so worker-backed MCP, delegation, inference and RSS/publisher endpoints can fulfill nested paid requests.
 
 ## Acceptance proof
 
