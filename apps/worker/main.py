@@ -54,6 +54,17 @@ class WalletStatusRequest(BaseModel):
     chain: str = "ARC-TESTNET"
 
 
+def env_int(name: str, default: int) -> int:
+    raw = os.getenv(name, "").strip()
+    if not raw:
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        return default
+    return max(1, value)
+
+
 def allowed_hosts() -> set[str]:
     raw = os.getenv(
         "AGENTPAY_ALLOWED_HOSTS",
@@ -578,6 +589,7 @@ async def pay_resource(request: Request, payer_request: PayerRequest) -> dict[st
     require_payer_auth(request)
     target_url = str(payer_request.targetUrl)
     assert_allowed(target_url)
+    request_timeout = env_int("AGENTPAY_PAYER_REQUEST_TIMEOUT_SECONDS", 90)
 
     command = [
         "circle",
@@ -590,10 +602,12 @@ async def pay_resource(request: Request, payer_request: PayerRequest) -> dict[st
         payer_request.chain,
         "--max-amount",
         payer_request.maxAmount,
+        "--timeout",
+        str(request_timeout),
         "--output",
         "json",
     ]
-    parsed = await run_circle_json(command)
+    parsed = await run_circle_json(command, timeout=request_timeout + 30)
 
     data = parsed.get("data") if isinstance(parsed, dict) else None
     response = data.get("response") if isinstance(data, dict) else None

@@ -32,6 +32,8 @@ OLLAMA_BASE_URL="$(env_value OLLAMA_BASE_URL)"
 OLLAMA_BASE_URL="${OLLAMA_BASE_URL:-http://127.0.0.1:11434}"
 OLLAMA_TIMEOUT_SECONDS="$(env_value OLLAMA_TIMEOUT_SECONDS)"
 OLLAMA_TIMEOUT_SECONDS="${OLLAMA_TIMEOUT_SECONDS:-180}"
+PAYER_REQUEST_TIMEOUT_SECONDS="$(env_value AGENTPAY_PAYER_REQUEST_TIMEOUT_SECONDS)"
+PAYER_REQUEST_TIMEOUT_SECONDS="${PAYER_REQUEST_TIMEOUT_SECONDS:-120}"
 
 if ! docker network inspect "$DOCKER_NETWORK" >/dev/null 2>&1; then
   docker network create "$DOCKER_NETWORK" >/dev/null
@@ -78,6 +80,7 @@ docker run -d \
   -e AGENTPAY_INFERENCE_MODEL="$INFERENCE_MODEL" \
   -e OLLAMA_BASE_URL="$OLLAMA_BASE_URL" \
   -e OLLAMA_TIMEOUT_SECONDS="$OLLAMA_TIMEOUT_SECONDS" \
+  -e AGENTPAY_PAYER_REQUEST_TIMEOUT_SECONDS="$PAYER_REQUEST_TIMEOUT_SECONDS" \
   -e AGENTPAY_ALLOWED_HOSTS=localhost,127.0.0.1,docs.arc.io,developers.circle.com,docs.x402.org,lepton.thecanteenapp.com,www.arc.network,arc.network,agentpay-gateway.vercel.app \
   -v "$ROOT_DIR/circle-home:/root" \
   agentpay-worker:latest >/dev/null
