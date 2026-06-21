@@ -46,12 +46,13 @@ Latest local verification on 2026-06-21 passed:
 - `AGENTPAY_WORKER_GATEWAY_SECRET` set to the same value in the web/API runtime and worker before exposing worker endpoints.
 - `AGENTPAY_WEBHOOK_SECRET` or `CIRCLE_WEBHOOK_SECRET` set before enabling webhook status updates.
 
-## Live verification on 2026-06-18
+## Live verification on 2026-06-21
 
 - Production app returned HTTP `200`.
 - Unpaid requests to all five protected resource endpoints returned `402 Payment Required`.
-- Full integration run: `run_0dd4624b-39d2-4895-8701-dc481d359839`.
-- Full integration result: 4 settled x402 payments, 4 fulfilled access requests, 0 fulfillment errors, 0.006600 USDC spent, 2 paid citations and 1 resource skipped by dynamic scoring.
+- Production deployment: `dpl_6ZYGYiELaFCjwS7ccYzDY5kcAaFJ`.
+- Latest budgeted agent run: `run_575219e0-c34f-4866-b000-05408ff7b593`.
+- Latest run result: 2 settled x402 payments, 2 fulfilled access requests, 0 fulfillment errors, 0.002300 USDC spent, 2 paid citations and 3 resources skipped by dynamic scoring.
 - Targeted agent-to-agent run: `run_1f2754fc-e22c-4bc6-9b0b-54faba33f89f`.
 - Targeted agent-to-agent result: 1 settled x402 payment, 1 fulfilled access request, 0 fulfillment errors, 0.002200 USDC spent.
 - `pnpm smoke:upstreams` passed against the live VPS worker with direct unpaid guards and upstream fulfillment for all five access classes.

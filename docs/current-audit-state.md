@@ -53,20 +53,20 @@ pnpm smoke:upstreams
 
 It verified direct unpaid guards for all five worker endpoints and upstream fulfillment for MCP, premium API, agent delegation, inference and publisher content.
 
-Live verification on 2026-06-18:
+Live verification on 2026-06-21:
 
 - Production URL: https://agentpay-gateway.vercel.app
-- Repository at time of verification: https://github.com/kaos35/agentpay-gateway
-- Current public repository: https://github.com/devvvenus/agentpay-gateway
+- Public repository: https://github.com/devvvenus/agentpay-gateway
 - VPS worker: `http://49.13.60.236:8010`
-- Production app returned HTTP `200`.
+- Production deployment: `dpl_6ZYGYiELaFCjwS7ccYzDY5kcAaFJ`
+- Production app returned HTTP `200` for `/`, `/dashboard` and `/receipts`.
 - Live resource catalog returned 5 paid resources.
-- Wallet status returned `paymentMode=x402`, `network=eip155:5042002`, wallet balance `19` USDC and gateway balance `0.889900` USDC.
+- Wallet status returned `paymentMode=x402`, `network=eip155:5042002`, wallet balance `19` USDC and gateway balance `0.881600` USDC before the latest paid run.
 - VPS worker health returned `ok`.
 - Unpaid live calls to all 5 protected resources returned `402 Payment Required`.
-- Full integration run `run_0dd4624b-39d2-4895-8701-dc481d359839`: 4 settled payments, 4 fulfilled access requests, 0 fulfillment errors, 0.006600 USDC spent, 2 paid citations, 1 resource skipped by dynamic scoring.
+- Latest budgeted run `run_575219e0-c34f-4866-b000-05408ff7b593`: 2 settled payments, 2 fulfilled access requests, 0 fulfillment errors, 0.002300 USDC spent, 2 paid citations, 3 resources skipped by dynamic scoring.
 - Targeted agent-to-agent run `run_1f2754fc-e22c-4bc6-9b0b-54faba33f89f`: 1 settled payment, 1 fulfilled access request, 0 fulfillment errors, 0.002200 USDC spent.
-- Live metrics after verification: 12 agent runs, 58 settled paid calls, 2 failed paid calls from pre-fix timeout attempts, 0.094700 USDC settled volume, 6 providers paid.
+- Live metrics after verification: 13 agent runs, 60 settled paid calls, 2 failed paid calls from earlier timeout attempts, 2 pending verification calls, 0.097000 USDC settled volume, 6 providers paid.
 - VPS worker runs real Ollama-backed paid inference with `qwen3:4b`.
 
 ## Audit boundaries

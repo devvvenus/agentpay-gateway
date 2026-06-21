@@ -43,6 +43,20 @@ Use this file as the final pre-submission evidence list. Do not mark an item com
 
 ## Verified Live Evidence
 
+Captured on 2026-06-21 against `https://agentpay-gateway.vercel.app` after deployment `dpl_6ZYGYiELaFCjwS7ccYzDY5kcAaFJ`:
+
+- Production app returned HTTP `200` for `/`, `/dashboard` and `/receipts`.
+- Public repository URL is `https://github.com/devvvenus/agentpay-gateway`.
+- Resource catalog returned 5 paid resources.
+- Wallet status returned `paymentMode=x402`, `network=eip155:5042002`, wallet balance `19` USDC and gateway balance `0.881600` USDC before the latest run.
+- VPS worker health returned `ok`.
+- Unpaid requests to all five protected resource endpoints returned `402 Payment Required`.
+- Budgeted agent run `run_575219e0-c34f-4866-b000-05408ff7b593` completed with 2 settled x402 payments, 2 fulfilled access requests, 0 fulfillment errors, 0.002300 USDC spent, 2 paid citations and 3 resources skipped by dynamic scoring.
+- Latest metrics after verification: 13 agent runs, 60 settled paid calls, 2 failed paid calls from earlier timeout attempts, 2 pending verification calls, 0.097000 USDC settled volume and 6 providers paid.
+- Production screenshots captured locally:
+  - `C:\tmp\agentpay-prod-dashboard-2026-06-21-v2.png`
+  - `C:\tmp\agentpay-prod-receipts-2026-06-21.png`
+
 Captured on 2026-06-18 against `https://agentpay-gateway.vercel.app`:
 
 - Production app returned HTTP `200`.
@@ -66,18 +80,16 @@ Captured on 2026-06-21 after the dashboard redesign, typography updates and repo
 - `pnpm build` passed.
 - `pnpm smoke:upstreams` passed against `AGENTPAY_WORKER_URL=http://49.13.60.236:8010` with `AGENTPAY_INFERENCE_MODEL=qwen3:4b`.
 
-## Proofs To Capture
+## Remaining Recording Tasks
 
-- Fresh dashboard load showing wallet/payment status.
-- Full integration run with terminal event stream.
-- Payment record with server-side settlement evidence.
-- Receipt entry with paid citations.
-- Provider earnings entry tied to the same payment identifier.
-- Metrics showing attempted, settled, pending and failed payment counts separately.
-- Signed webhook request updating an existing payment identifier.
-- Dashboard refresh/restart showing persisted state from Supabase.
-- `pnpm typecheck`, `pnpm test`, `pnpm smoke`, `pnpm smoke:upstreams`, `pnpm build` output.
-- `pnpm smoke:upstreams` against the live VPS worker passed on 2026-06-18 with `AGENTPAY_WORKER_URL=http://49.13.60.236:8010` and `AGENTPAY_INFERENCE_MODEL=qwen3:4b`.
+These are not missing implementation items; they are the final recording shots to capture for the hackathon submission video:
+
+- Fresh dashboard load showing live wallet/payment status.
+- One new paid agent run with the terminal event stream visible.
+- The matching receipt page showing settlement evidence, paid citations and provider earnings.
+- Metrics after the run showing attempted, settled, pending and failed payment counts.
+- Dashboard refresh/restart showing state persisted from Supabase.
+- A short terminal clip or screenshot with the latest `pnpm typecheck`, `pnpm test`, `pnpm smoke`, `pnpm smoke:upstreams` and `pnpm build` output.
 
 ## Three-Minute Recording Structure
 
