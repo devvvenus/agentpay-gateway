@@ -6,7 +6,7 @@ Use this file as the final pre-submission evidence list. Do not mark an item com
 
 - Web app URL: `https://agentpay-gateway.vercel.app`
 - Worker URL: `http://49.13.60.236:8010`
-- Public repository URL: `https://github.com/kaos35/agentpay-gateway`
+- Public repository URL: `https://github.com/devvvenus/agentpay-gateway`
 - Supabase project reference: `ppydekkmamrylhyngvys`
 
 ## Deployment Notes
@@ -55,6 +55,16 @@ Captured on 2026-06-18 against `https://agentpay-gateway.vercel.app`:
 - Targeted agent-to-agent run `run_1f2754fc-e22c-4bc6-9b0b-54faba33f89f` completed with 1 settled x402 payment, 1 fulfilled agent-service request, 0 fulfillment errors and 0.002200 USDC spent.
 - Latest payment record after verification showed `settled` status, `fulfillmentStatus=delivered`, server-side settlement evidence and a matching receipt/provider earning.
 - Metrics after verification: 12 agent runs, 58 settled paid calls, 2 failed paid calls from pre-fix timeout attempts, 0.094700 USDC settled volume and 6 providers paid.
+
+## Latest Local Evidence
+
+Captured on 2026-06-21 after the dashboard redesign, typography updates and repository migration to `https://github.com/devvvenus/agentpay-gateway`:
+
+- `pnpm typecheck` passed.
+- `pnpm test` passed: 9 test files, 41 tests.
+- `pnpm smoke` passed.
+- `pnpm build` passed.
+- `pnpm smoke:upstreams` passed against `AGENTPAY_WORKER_URL=http://49.13.60.236:8010` with `AGENTPAY_INFERENCE_MODEL=qwen3:4b`.
 
 ## Proofs To Capture
 

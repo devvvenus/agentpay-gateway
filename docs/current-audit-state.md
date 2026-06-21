@@ -1,6 +1,6 @@
 # AgentPay Gateway Current Audit State
 
-Last local verification: 2026-06-18.
+Last local verification: 2026-06-21.
 
 This file exists so future audits do not rely on stale generated files or infer runtime state from `.env.example` alone.
 
@@ -30,7 +30,7 @@ This file exists so future audits do not rely on stale generated files or infer 
 
 ## Verified commands
 
-These commands passed locally on 2026-06-18:
+These commands passed locally on 2026-06-18 and were re-run successfully on 2026-06-21 after the dashboard redesign, typography updates and GitHub repository migration:
 
 ```powershell
 pnpm typecheck
@@ -42,7 +42,7 @@ pnpm smoke:upstreams
 
 `pnpm test` and `pnpm smoke` required sandbox-external reruns on Windows because Vitest/Vite/esbuild hit `spawn EPERM` inside the managed sandbox. `pnpm build` also required a sandbox-external rerun after a Windows/OneDrive `.next` file lock. All passed after rerun.
 
-`pnpm smoke:upstreams` passed against the live VPS worker on 2026-06-18 with:
+`pnpm smoke:upstreams` passed against the live VPS worker on 2026-06-18 and again on 2026-06-21 with:
 
 ```powershell
 $env:AGENTPAY_WORKER_URL='http://49.13.60.236:8010'
@@ -56,7 +56,8 @@ It verified direct unpaid guards for all five worker endpoints and upstream fulf
 Live verification on 2026-06-18:
 
 - Production URL: https://agentpay-gateway.vercel.app
-- Repository: https://github.com/kaos35/agentpay-gateway
+- Repository at time of verification: https://github.com/kaos35/agentpay-gateway
+- Current public repository: https://github.com/devvvenus/agentpay-gateway
 - VPS worker: `http://49.13.60.236:8010`
 - Production app returned HTTP `200`.
 - Live resource catalog returned 5 paid resources.
@@ -81,6 +82,7 @@ Live verification on 2026-06-18:
 
 ## Still not complete
 
+- GitHub migration verification: the old `kaos35` GitHub account is not currently accessible. The repository has been created under `https://github.com/devvvenus/agentpay-gateway`; final submission docs and deployment integrations should use that URL.
 - Traction evidence: real users, real paid runs, provider/creator payout screenshots or receipts.
 - Recorded walkthrough under three minutes.
 

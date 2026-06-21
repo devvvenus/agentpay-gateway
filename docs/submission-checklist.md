@@ -24,9 +24,17 @@ Expected result:
 - Replayed payment identifiers do not create duplicate provider earnings.
 - Mainnet is blocked unless `ALLOW_MAINNET=true`.
 
+Latest local verification on 2026-06-21 passed:
+
+- `pnpm typecheck`
+- `pnpm test`
+- `pnpm smoke`
+- `pnpm build`
+- `pnpm smoke:upstreams` against the live VPS worker.
+
 ## Live deployment requirements
 
-- Public GitHub repository: https://github.com/kaos35/agentpay-gateway
+- Public GitHub repository: https://github.com/devvvenus/agentpay-gateway
 - Vercel production app: https://agentpay-gateway.vercel.app
 - Worker host for `apps/worker`: `http://49.13.60.236:8010`
 - Supabase project configured for `runtime_snapshots`.
@@ -54,7 +62,7 @@ Expected result:
 Before submission, capture:
 
 - Live app URL.
-- Public repository URL.
+- Public repository URL: https://github.com/devvvenus/agentpay-gateway
 - A full integration run showing agent decisions, paid resources, receipts and provider earnings.
 - A settled payment record where `attemptedPaidCalls`, `settledPaidCalls`, pending and failed metrics are visibly separated.
 - A webhook event that updates a known payment identifier to `settled` or `failed`.

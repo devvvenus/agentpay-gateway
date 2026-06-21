@@ -42,7 +42,7 @@ pnpm smoke:upstreams
 Live production status on 2026-06-18:
 
 - App: https://agentpay-gateway.vercel.app
-- Repository: https://github.com/kaos35/agentpay-gateway
+- Repository: https://github.com/devvvenus/agentpay-gateway
 - Worker: `http://49.13.60.236:8010`
 - Full integration agent run: `run_0dd4624b-39d2-4895-8701-dc481d359839`
 - Full integration result: 4 settled x402 payments, 4 fulfilled access requests, 0 fulfillment errors, 0.006600 USDC spent, 2 paid citations, 1 resource skipped by score.
