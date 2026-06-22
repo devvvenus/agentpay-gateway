@@ -148,7 +148,19 @@ export function createAdapter(type: AdapterType): PaidResourceAdapter {
 export function allowedHostsFromEnv(env: NodeJS.ProcessEnv = process.env): string[] {
   const defaults =
     "localhost,127.0.0.1,docs.arc.io,developers.circle.com,docs.x402.org,lepton.thecanteenapp.com,www.arc.network,arc.network";
-  const raw = [defaults, env.AGENTPAY_ALLOWED_HOSTS].filter(Boolean).join(",");
+  const runtimeHosts = [
+    env.NEXT_PUBLIC_APP_URL,
+    env.AGENTPAY_WORKER_URL,
+    env.AGENTPAY_PAYER_URL,
+    env.AGENTPAY_MCP_SERVER_URL,
+    env.AGENTPAY_MEMORY_URL,
+    env.AGENTPAY_RSS_PAYWALL_URL,
+    env.AGENTPAY_INFERENCE_URL
+  ]
+    .map(hostFromUrl)
+    .filter(Boolean)
+    .join(",");
+  const raw = [defaults, runtimeHosts, env.AGENTPAY_ALLOWED_HOSTS].filter(Boolean).join(",");
   return Array.from(
     new Set(
       raw
@@ -157,6 +169,15 @@ export function allowedHostsFromEnv(env: NodeJS.ProcessEnv = process.env): strin
         .filter(Boolean)
     )
   );
+}
+
+function hostFromUrl(rawUrl: string | undefined): string | undefined {
+  if (!rawUrl) return undefined;
+  try {
+    return new URL(rawUrl).hostname.toLowerCase();
+  } catch {
+    return undefined;
+  }
 }
 
 const baseQuote = async (input: AdapterInput): Promise<Quote> => ({
