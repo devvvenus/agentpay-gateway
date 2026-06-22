@@ -1,0 +1,94 @@
+name: Sync Vercel Production Env
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    name: Sync production environment
+    runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      AGENTPAY_NETWORK: ${{ secrets.AGENTPAY_NETWORK }}
+      AGENTPAY_PAYMENT_MODE: ${{ secrets.AGENTPAY_PAYMENT_MODE }}
+      ALLOW_MAINNET: ${{ secrets.ALLOW_MAINNET }}
+      ARC_RPC_URL: ${{ secrets.ARC_RPC_URL }}
+      ARC_EXPLORER_URL: ${{ secrets.ARC_EXPLORER_URL }}
+      USDC_DECIMALS: ${{ secrets.USDC_DECIMALS }}
+      BUYER_ADDRESS: ${{ secrets.BUYER_ADDRESS }}
+      SELLER_ADDRESS: ${{ secrets.SELLER_ADDRESS }}
+      SELLER_ADDRESS_1: ${{ secrets.SELLER_ADDRESS_1 }}
+      SELLER_ADDRESS_2: ${{ secrets.SELLER_ADDRESS_2 }}
+      SELLER_ADDRESS_3: ${{ secrets.SELLER_ADDRESS_3 }}
+      CIRCLE_GATEWAY_BALANCE_HINT_USDC: ${{ secrets.CIRCLE_GATEWAY_BALANCE_HINT_USDC }}
+      AGENTPAY_WORKER_URL: ${{ secrets.AGENTPAY_WORKER_URL }}
+      AGENTPAY_PAYER_URL: ${{ secrets.AGENTPAY_PAYER_URL }}
+      AGENTPAY_PAYER_API_KEY: ${{ secrets.AGENTPAY_PAYER_API_KEY }}
+      AGENTPAY_ALLOWED_HOSTS: ${{ secrets.AGENTPAY_ALLOWED_HOSTS }}
+      AGENTPAY_MCP_SERVER_URL: ${{ secrets.AGENTPAY_MCP_SERVER_URL }}
+      AGENTPAY_MEMORY_URL: ${{ secrets.AGENTPAY_MEMORY_URL }}
+      AGENTPAY_RSS_PAYWALL_URL: ${{ secrets.AGENTPAY_RSS_PAYWALL_URL }}
+      AGENTPAY_INFERENCE_URL: ${{ secrets.AGENTPAY_INFERENCE_URL }}
+      AGENTPAY_INFERENCE_MODEL: ${{ secrets.AGENTPAY_INFERENCE_MODEL }}
+      DATASETTE_BASE_URL: ${{ secrets.DATASETTE_BASE_URL }}
+      DATASSETTE_BASE_URL: ${{ secrets.DATASSETTE_BASE_URL }}
+      SEARXNG_BASE_URL: ${{ secrets.SEARXNG_BASE_URL }}
+    steps:
+      - name: Install Vercel CLI
+        run: npm install -g vercel@54.9.1
+
+      - name: Sync production variables
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          keys=(
+            NEXT_PUBLIC_APP_URL
+            NEXT_PUBLIC_SUPABASE_URL
+            SUPABASE_SERVICE_ROLE_KEY
+            AGENTPAY_NETWORK
+            AGENTPAY_PAYMENT_MODE
+            ALLOW_MAINNET
+            ARC_RPC_URL
+            ARC_EXPLORER_URL
+            USDC_DECIMALS
+            BUYER_ADDRESS
+            SELLER_ADDRESS
+            SELLER_ADDRESS_1
+            SELLER_ADDRESS_2
+            SELLER_ADDRESS_3
+            CIRCLE_GATEWAY_BALANCE_HINT_USDC
+            AGENTPAY_WORKER_URL
+            AGENTPAY_PAYER_URL
+            AGENTPAY_PAYER_API_KEY
+            AGENTPAY_ALLOWED_HOSTS
+            AGENTPAY_MCP_SERVER_URL
+            AGENTPAY_MEMORY_URL
+            AGENTPAY_RSS_PAYWALL_URL
+            AGENTPAY_INFERENCE_URL
+            AGENTPAY_INFERENCE_MODEL
+            DATASETTE_BASE_URL
+            DATASSETTE_BASE_URL
+            SEARXNG_BASE_URL
+          )
+
+          for key in "${keys[@]}"; do
+            value="${!key:-}"
+            if [ -z "$value" ]; then
+              echo "skip $key: empty secret"
+              continue
+            fi
+            vercel env add "$key" production \
+              --scope venusk \
+              --project agentpay-gateway \
+              --token="${{ secrets.VERCEL_TOKEN }}" \
+              --force \
+              --yes \
+              --value "$value" >/dev/null
+            echo "synced $key"
+          done
