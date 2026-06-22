@@ -4,7 +4,7 @@ services:
       context: .
       dockerfile: apps/worker/Dockerfile
     environment:
-      - AGENTPAY_ALLOWED_HOSTS=localhost,127.0.0.1,docs.arc.io,developers.circle.com,docs.x402.org,lepton.thecanteenapp.com,www.arc.network,arc.network
+      - AGENTPAY_ALLOWED_HOSTS=localhost,127.0.0.1,docs.arc.io,developers.circle.com,docs.x402.org,lepton.thecanteenapp.com,www.arc.network,arc.network,agentpay-gateway.vercel.app,agentpay-gateway-beige.vercel.app
       - AGENTPAY_WORKER_GATEWAY_SECRET=${AGENTPAY_WORKER_GATEWAY_SECRET:-}
       - AGENTPAY_PAYER_API_KEY=${AGENTPAY_PAYER_API_KEY:-}
       - CIRCLE_ACCEPT_TERMS=${CIRCLE_ACCEPT_TERMS:-1}

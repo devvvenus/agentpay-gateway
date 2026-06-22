@@ -81,7 +81,7 @@ docker run -d \
   -e OLLAMA_BASE_URL="$OLLAMA_BASE_URL" \
   -e OLLAMA_TIMEOUT_SECONDS="$OLLAMA_TIMEOUT_SECONDS" \
   -e AGENTPAY_PAYER_REQUEST_TIMEOUT_SECONDS="$PAYER_REQUEST_TIMEOUT_SECONDS" \
-  -e AGENTPAY_ALLOWED_HOSTS=localhost,127.0.0.1,docs.arc.io,developers.circle.com,docs.x402.org,lepton.thecanteenapp.com,www.arc.network,arc.network,agentpay-gateway.vercel.app \
+  -e AGENTPAY_ALLOWED_HOSTS=localhost,127.0.0.1,docs.arc.io,developers.circle.com,docs.x402.org,lepton.thecanteenapp.com,www.arc.network,arc.network,agentpay-gateway.vercel.app,agentpay-gateway-beige.vercel.app \
   -v "$ROOT_DIR/circle-home:/root" \
   agentpay-worker:latest >/dev/null
 
