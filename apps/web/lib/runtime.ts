@@ -1,11 +1,12 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { seedData } from "@agentpay/adapters";
 import { AgentPayStore, type StoreSnapshot } from "@agentpay/db";
 import { PaymentService, loadPaymentConfig } from "@agentpay/payments";
 
-const STATE_DIR = ".agentpay";
-const STATE_FILE = ".agentpay/state.json";
+const STATE_DIR = process.env.VERCEL ? join("/tmp", "agentpay") : ".agentpay";
+const STATE_FILE = join(STATE_DIR, "state.json");
 
 declare global {
   // eslint-disable-next-line no-var
@@ -82,8 +83,12 @@ function readStateSnapshot(): StoreSnapshot | undefined {
 
 function writeStateSnapshot(snapshot: StoreSnapshot) {
   if (process.env.NODE_ENV === "test" && process.env.AGENTPAY_ENABLE_FILE_STATE !== "true") return;
-  mkdirSync(STATE_DIR, { recursive: true });
-  writeFileSync(STATE_FILE, JSON.stringify(snapshot, null, 2));
+  try {
+    mkdirSync(STATE_DIR, { recursive: true });
+    writeFileSync(STATE_FILE, JSON.stringify(snapshot, null, 2));
+  } catch {
+    // Serverless filesystems can be read-only outside /tmp. Supabase remains the durable sink.
+  }
   void writeSupabaseSnapshot(snapshot);
 }
 
