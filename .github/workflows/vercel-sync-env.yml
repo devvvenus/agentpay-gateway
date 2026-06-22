@@ -39,8 +39,14 @@ jobs:
       DATASSETTE_BASE_URL: ${{ secrets.DATASSETTE_BASE_URL }}
       SEARXNG_BASE_URL: ${{ secrets.SEARXNG_BASE_URL }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Install Vercel CLI
         run: npm install -g vercel@54.9.1
+
+      - name: Link Vercel project
+        run: vercel link --yes --scope venusk --project agentpay-gateway --token=${{ secrets.VERCEL_TOKEN }}
 
       - name: Sync production variables
         shell: bash
@@ -85,7 +91,6 @@ jobs:
             fi
             vercel env add "$key" production \
               --scope venusk \
-              --project agentpay-gateway \
               --token="${{ secrets.VERCEL_TOKEN }}" \
               --force \
               --yes \
