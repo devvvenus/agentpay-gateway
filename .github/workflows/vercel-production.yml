@@ -17,9 +17,6 @@ jobs:
   deploy:
     name: Build, verify, and deploy
     runs-on: ubuntu-latest
-    env:
-      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -51,7 +48,7 @@ jobs:
         run: npm install -g vercel@54.9.1
 
       - name: Pull Vercel production environment
-        run: vercel pull --yes --environment=production --scope venus-projects-398f2b62 --project "$VERCEL_PROJECT_ID" --token=${{ secrets.VERCEL_TOKEN }}
+        run: vercel pull --yes --environment=production --scope venusk --project agentpay-gateway --token=${{ secrets.VERCEL_TOKEN }}
 
       - name: Build Vercel artifact
         run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
