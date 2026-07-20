@@ -43,6 +43,37 @@ export function requireAdminRequest(request: Request): Response | undefined {
   return undefined;
 }
 
+/**
+ * The browser-facing agent runner can invoke the configured Circle payer. Keep
+ * it behind a separate key in production x402 deployments; an admin key must
+ * never be embedded in the public dashboard.
+ */
+export function requireAgentRunRequest(request: Request, budgetUsdc: number): Response | undefined {
+  const isProductionX402 = process.env.NODE_ENV === "production" && loadPaymentConfig().mode === "x402";
+  if (!isProductionX402) return undefined;
+
+  const key = process.env.AGENTPAY_RUNNER_API_KEY;
+  if (!key) return jsonError("AGENTPAY_RUNNER_API_KEY is required before enabling production x402 agent runs", 503);
+  const provided = request.headers.get("x-agentpay-runner-key") || "";
+  if (!safeEqual(provided, key)) return jsonError("Agent-run access key required", 401);
+
+  const configuredMax = Number(process.env.AGENTPAY_MAX_RUN_BUDGET_USDC || "0.01");
+  if (!Number.isFinite(configuredMax) || configuredMax <= 0) {
+    return jsonError("AGENTPAY_MAX_RUN_BUDGET_USDC must be a positive number", 503);
+  }
+  if (budgetUsdc > configuredMax) {
+    return jsonError(`Requested budget exceeds the configured ${configuredMax.toFixed(6)} USDC agent-run limit`, 400);
+  }
+  return undefined;
+}
+
+export function canViewSensitiveRuntimeData(request: Request): boolean {
+  if (process.env.NODE_ENV !== "production") return true;
+  return [process.env.AGENTPAY_ADMIN_API_KEY, process.env.AGENTPAY_RUNNER_API_KEY]
+    .filter((key): key is string => Boolean(key))
+    .some((key) => safeEqual(request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") || request.headers.get("x-agentpay-admin-key") || request.headers.get("x-agentpay-runner-key") || "", key));
+}
+
 export function verifyWebhookRequest(rawBody: string, request: Request): Response | undefined {
   const secret = process.env.AGENTPAY_WEBHOOK_SECRET || process.env.CIRCLE_WEBHOOK_SECRET;
   if (!secret) {

@@ -4,6 +4,12 @@
   "private": true,
   "type": "module",
   "packageManager": "pnpm@10.33.2",
+  "pnpm": {
+    "overrides": {
+      "postcss": ">=8.5.10",
+      "ws": ">=8.21.0"
+    }
+  },
   "scripts": {
     "dev": "pnpm --filter @agentpay/web dev",
     "build": "pnpm --filter @agentpay/shared build && pnpm --filter @agentpay/db build && pnpm --filter @agentpay/payments build && pnpm --filter @agentpay/adapters build && pnpm --filter @agentpay/agent build && pnpm --filter @agentpay/sdk build && pnpm --filter @agentpay/web build",

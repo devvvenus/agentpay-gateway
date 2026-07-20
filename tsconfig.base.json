@@ -21,7 +21,8 @@
       "@agentpay/db": ["packages/db/src/index.ts"],
       "@agentpay/payments": ["packages/payments/src/index.ts"],
       "@agentpay/adapters": ["packages/adapters/src/index.ts"],
-      "@agentpay/agent": ["packages/agent/src/index.ts"]
+      "@agentpay/agent": ["packages/agent/src/index.ts"],
+      "three": ["node_modules/@types/three/index.d.ts"]
     }
   }
 }

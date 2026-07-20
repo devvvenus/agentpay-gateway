@@ -1,6 +1,6 @@
-import { getStore } from "../../../lib/runtime";
+import { canViewSensitiveRuntimeData, getStore } from "../../../lib/runtime";
 
-export async function GET() {
+export async function GET(request: Request) {
   const store = await getStore();
   const resources = store.listResources();
   const providers = store.listProviders();
@@ -92,8 +92,12 @@ export async function GET() {
     };
   });
 
+  const visibleEntries = canViewSensitiveRuntimeData(request)
+    ? entries
+    : entries.map(({ buyerWallet, sellerWallet, paymentIdentifier, settlementEvidence, verificationError, receiptPayload, ...entry }) => entry);
+
   return Response.json({
-    entries: entries.slice(0, 50),
+    entries: visibleEntries.slice(0, 50),
     totals: {
       payments: entries.length,
       attempted: entries.length,

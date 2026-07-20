@@ -2,10 +2,21 @@ import type { AdapterType } from "@agentpay/shared";
 import { runAgent, type PaymentPolicyInput } from "@agentpay/agent";
 import { loadPaymentConfig } from "@agentpay/payments";
 import { executePaidResourceWithCircle } from "../../../../lib/circle-paid-resource";
-import { getStore, jsonError } from "../../../../lib/runtime";
+import { canViewSensitiveRuntimeData, getStore, jsonError, requireAgentRunRequest } from "../../../../lib/runtime";
 
-export async function GET() {
-  return Response.json({ runs: (await getStore()).listRuns() });
+export async function GET(request: Request) {
+  const runs = (await getStore()).listRuns();
+  if (canViewSensitiveRuntimeData(request)) return Response.json({ runs });
+  return Response.json({
+    runs: runs.map(({ id, status, budgetUsdc, totalSpendUsdc, createdAt, completedAt }) => ({
+      id,
+      status,
+      budgetUsdc,
+      totalSpendUsdc,
+      createdAt,
+      completedAt
+    }))
+  });
 }
 
 export async function POST(request: Request) {
@@ -22,6 +33,8 @@ export async function POST(request: Request) {
   if (!body?.prompt || typeof body.budgetUsdc !== "number" || body.budgetUsdc <= 0) {
     return jsonError("prompt and positive budgetUsdc are required");
   }
+  const authError = requireAgentRunRequest(request, body.budgetUsdc);
+  if (authError) return authError;
 
   try {
     const run = await runAgent({

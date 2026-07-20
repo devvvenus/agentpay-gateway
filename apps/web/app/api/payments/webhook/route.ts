@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { getStore, verifyWebhookRequest } from "../../../../lib/runtime";
 
 export async function POST(request: Request) {
@@ -15,19 +16,36 @@ export async function POST(request: Request) {
       readString(body, ["data", "status"]) ||
       readString(body, ["data", "state"])
   );
+  const eventId =
+    request.headers.get("x-webhook-id") ||
+    readString(body, ["eventId"]) ||
+    readString(body, ["id"]) ||
+    createHash("sha256").update(rawBody).digest("hex");
+  const eventAt = readString(body, ["createdAt"]) || readString(body, ["timestamp"]) || new Date().toISOString();
+  const existing = paymentIdentifier
+    ? store.listPaymentEvents().find((payment) => payment.paymentIdentifier === paymentIdentifier)
+    : undefined;
+  const previousEventId = typeof existing?.metadata["webhookEventId"] === "string" ? existing.metadata["webhookEventId"] : undefined;
+  const previousEventAt = typeof existing?.metadata["webhookEventAt"] === "string" ? existing.metadata["webhookEventAt"] : undefined;
+  const terminal = existing?.status === "settled" || existing?.status === "failed" || existing?.status === "verification_failed";
+  const stale = previousEventAt && Date.parse(eventAt) <= Date.parse(previousEventAt);
+  const ignored = Boolean(existing && eventStatus && (previousEventId === eventId || stale || (terminal && existing.status !== eventStatus)));
   const updated =
-    paymentIdentifier && eventStatus
+    paymentIdentifier && eventStatus && !ignored
       ? store.updatePaymentEventStatus(paymentIdentifier, eventStatus, {
           webhookReceivedAt: new Date().toISOString(),
+          webhookEventAt: eventAt,
+          webhookEventId: eventId,
           webhookEvent: body
         })
       : undefined;
 
   return Response.json({
     accepted: true,
+    ignored,
     paymentIdentifier: paymentIdentifier ?? null,
     mappedStatus: eventStatus ?? null,
-    updatedPayment: updated ?? null,
+    updatedPayment: updated ?? existing ?? null,
     currentMetrics: store.metrics()
   });
 }
