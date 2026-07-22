@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { loadPaymentConfig } from "@agentpay/payments";
+import { canViewSensitiveRuntimeData } from "../../../../lib/runtime";
 import { ARC_TESTNET_USDC_ADDRESS } from "@agentpay/shared";
 
 const execFileAsync = promisify(execFile);
@@ -46,10 +47,13 @@ type GatewayBalanceJson = {
   };
 };
 
-export async function GET() {
+export async function GET(request: Request) {
   const config = loadPaymentConfig();
   const address = config.buyerAddress;
   const chain = "ARC-TESTNET";
+  if (!canViewSensitiveRuntimeData(request)) {
+    return Response.json({ network: config.network, paymentMode: config.mode, balanceVisibility: "restricted" });
+  }
   const remote = await getRemoteWalletStatus(address, chain);
   if (remote) {
     return Response.json({

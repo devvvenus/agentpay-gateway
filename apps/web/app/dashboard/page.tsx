@@ -16,11 +16,11 @@ type Metrics = {
 type WalletStatus = {
   network: string;
   paymentMode: string;
-  address: string;
-  walletBalance:
+  address?: string;
+  walletBalance?:
     | { ok: true; amount: string; token: string }
     | { ok: false; error: string };
-  gatewayBalance:
+  gatewayBalance?:
     | { ok: true; amount: string; token: string }
     | { ok: false; error: string };
 };
@@ -93,6 +93,7 @@ export default function DashboardPage() {
   const [receipts, setReceipts] = useState<ReceiptEntry[]>([]);
   const [prompt, setPrompt] = useState(initialPrompt);
   const [budget, setBudget] = useState("0.05");
+  const [runnerAccessCode, setRunnerAccessCode] = useState("");
   const [selectedClasses, setSelectedClasses] = useState(accessClasses.map((item) => item.id));
   const [terminal, setTerminal] = useState<string[]>([
     "Control room ready",
@@ -153,7 +154,10 @@ export default function DashboardPage() {
     try {
       const response = await fetch("/api/agent/runs/stream", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          ...(runnerAccessCode ? { "x-agentpay-runner-key": runnerAccessCode } : {})
+        },
         body: JSON.stringify({
           prompt,
           budgetUsdc: parsedBudget,
@@ -250,6 +254,18 @@ export default function DashboardPage() {
               </div>
             </div>
 
+            <label className="ops-field">
+              <span>Jury run access code</span>
+              <input
+                type="password"
+                autoComplete="off"
+                value={runnerAccessCode}
+                onChange={(event) => setRunnerAccessCode(event.target.value)}
+                placeholder="Required only for production x402 demos"
+              />
+              <small>Never commit or publish this code.</small>
+            </label>
+
             <div className="ops-field">
               <span>Allowed access</span>
               <div className="ops-access-selector">
@@ -304,11 +320,11 @@ export default function DashboardPage() {
             <div className="ops-balance-list">
               <BalanceRow
                 label="Agent wallet"
-                value={wallet?.walletBalance.ok ? `${wallet.walletBalance.amount} ${wallet.walletBalance.token}` : "Checking"}
+                value={wallet?.walletBalance?.ok ? `${wallet.walletBalance.amount} ${wallet.walletBalance.token}` : "Restricted"}
               />
               <BalanceRow
                 label="Gateway"
-                value={wallet?.gatewayBalance.ok ? `${wallet.gatewayBalance.amount} ${wallet.gatewayBalance.token}` : "Checking"}
+                value={wallet?.gatewayBalance?.ok ? `${wallet.gatewayBalance.amount} ${wallet.gatewayBalance.token}` : "Restricted"}
               />
               <BalanceRow label="Paid resources" value={String(paidCount)} />
               <BalanceRow label="Fulfilled" value={String(completedCount)} />

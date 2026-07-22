@@ -27,31 +27,17 @@ The product should not be presented as a generic SDK, a shopping agent or an ada
 
 ## Current audit baseline
 
-As of 2026-06-21, the following commands pass locally:
+Run the verification suite on the exact commit you intend to share:
 
 ```powershell
 pnpm typecheck
 pnpm test
-pnpm smoke
 pnpm build
-pnpm smoke:upstreams
+pnpm audit --prod
+python -m compileall -q apps/worker
 ```
 
-`pnpm smoke:upstreams` verifies the underlying fulfillment paths against running local upstream services. Generated files such as `.next/`, `.agentpay/`, `*.log`, `*.tsbuildinfo` and `_tmp_*` are ignored and should not be used as audit evidence. See [Current audit state](docs/current-audit-state.md) for exact boundaries.
-
-Live production status on 2026-06-21:
-
-- App: https://agentpay-gateway.vercel.app
-- Repository: https://github.com/devvvenus/agentpay-gateway
-- Worker: `http://49.13.60.236:8010`
-- Latest production deployment: `dpl_6ZYGYiELaFCjwS7ccYzDY5kcAaFJ`
-- Latest budgeted agent run: `run_575219e0-c34f-4866-b000-05408ff7b593`
-- Latest run result: 2 settled x402 payments, 2 fulfilled access requests, 0 fulfillment errors, 0.002300 USDC spent, 2 paid citations, 3 resources skipped by score.
-- Targeted agent-to-agent live run: `run_1f2754fc-e22c-4bc6-9b0b-54faba33f89f`
-- Targeted result: agent service access paid and fulfilled with 1 settled x402 payment, 0 fulfillment errors, 0.002200 USDC spent.
-- All five protected resource endpoints returned `402 Payment Required` without payment.
-- Live metrics after verification: 13 agent runs, 60 settled paid calls, 0.097000 USDC settled volume, 6 providers paid.
-
+Historical deployment identifiers and wallet activity are deliberately not treated as current audit evidence. Use the [jury deployment checklist](docs/jury-deployment-checklist.md) and the generated audit report for the release you share.
 ## Local quickstart
 
 ```powershell
@@ -77,7 +63,7 @@ docker compose up worker
 
 When using Docker, pass `AGENTPAY_WORKER_GATEWAY_SECRET` and `AGENTPAY_PAYER_API_KEY` from your shell or a Compose `.env` file if you want the worker to enforce gateway-only access and expose the Circle payer endpoint. The same `AGENTPAY_WORKER_GATEWAY_SECRET` must also be set in the web/API runtime.
 
-With the default `.env.local`, the underlying fulfillment services call the worker and public allowlisted endpoints directly:
+For a local Docker worker, set `AGENTPAY_ALLOW_LOCAL_UPSTREAMS=true` in that worker environment. Keep it `false` for deployed environments. The underlying fulfillment services call the worker and public allowlisted endpoints directly:
 
 - `AGENTPAY_MCP_SERVER_URL=http://localhost:8000/mcp`
 - `AGENTPAY_WORKER_URL=http://localhost:8000`
@@ -99,6 +85,16 @@ pnpm smoke:upstreams
 
 This command expects the worker to already be running. It intentionally fails if an upstream is unavailable, because the product should prove real fulfillment instead of silently falling back to synthetic responses.
 
+## Jury-safe deployment
+
+This repository is a **testnet demonstration**, not a mainnet custody product. Before sharing a live x402 deployment with judges:
+
+1. Set `AGENTPAY_RUNNER_API_KEY`, `AGENTPAY_MAX_RUN_BUDGET_USDC` (the default demo ceiling is `0.010000` USDC), `AGENTPAY_WORKER_GATEWAY_SECRET`, `AGENTPAY_PAYER_API_KEY`, and a webhook secret.
+2. Give the runner key only to the presenter or an invited judge; send it as `x-agentpay-runner-key` when starting an agent run. Do not embed it in frontend code or a public URL.
+3. Keep the worker on a private network where possible. Its paid endpoints reject unauthenticated gateway context, non-allowlisted upstreams, private-address targets, and redirect escapes by default.
+4. Use a low-balance Arc testnet buyer wallet. Mainnet stays blocked unless `ALLOW_MAINNET=true`.
+
+Public catalog, manifests, and aggregate metrics remain available for jury review. In production, detailed prompts, receipts, settlement evidence, and wallet balances require the runner or admin key.
 ## Testnet posture
 
 `.env.example` defaults to `AGENTPAY_PAYMENT_MODE=x402`. Configure `BUYER_ADDRESS`, `SELLER_ADDRESS`, provider-specific `SELLER_ADDRESS_1..3` and Circle CLI credentials in `.env.local` before running paid resources. Mainnet is blocked unless `ALLOW_MAINNET=true`.

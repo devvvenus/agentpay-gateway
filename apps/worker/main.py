@@ -4,9 +4,11 @@ import os
 import re
 import json
 from collections import Counter
+from ipaddress import ip_address
+from socket import getaddrinfo
 from datetime import UTC, datetime
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 import httpx
 from bs4 import BeautifulSoup
@@ -68,18 +70,45 @@ def env_int(name: str, default: int) -> int:
 def allowed_hosts() -> set[str]:
     raw = os.getenv(
         "AGENTPAY_ALLOWED_HOSTS",
-        "localhost,127.0.0.1,docs.arc.io,developers.circle.com,docs.x402.org,lepton.thecanteenapp.com,www.arc.network,arc.network",
+        "docs.arc.io,developers.circle.com,docs.x402.org,lepton.thecanteenapp.com,www.arc.network",
     )
     return {host.strip().lower() for host in raw.split(",") if host.strip()}
+
+
+def local_upstreams_allowed() -> bool:
+    return os.getenv("AGENTPAY_ALLOW_LOCAL_UPSTREAMS", "false").lower() == "true"
 
 
 def assert_allowed(url: str) -> None:
     parsed = urlparse(url)
     host = (parsed.hostname or "").lower()
-    if parsed.scheme not in {"http", "https"}:
-        raise HTTPException(status_code=400, detail="Unsupported URL protocol")
-    if not any(host == allowed or host.endswith(f".{allowed}") for allowed in allowed_hosts()):
+    if parsed.scheme not in {"http", "https"} or not host or parsed.username or parsed.password:
+        raise HTTPException(status_code=400, detail="Unsupported upstream URL")
+    if host not in allowed_hosts():
         raise HTTPException(status_code=403, detail=f"Blocked upstream host: {host}")
+    try:
+        addresses = {entry[4][0] for entry in getaddrinfo(host, parsed.port or (443 if parsed.scheme == "https" else 80))}
+    except OSError as error:
+        raise HTTPException(status_code=400, detail=f"Unable to resolve upstream host: {error}")
+    for address in addresses:
+        ip = ip_address(address)
+        if (ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast or ip.is_unspecified) and not local_upstreams_allowed():
+            raise HTTPException(status_code=403, detail="Blocked non-public upstream address")
+
+
+async def fetch_allowed(client: httpx.AsyncClient, url: str) -> httpx.Response:
+    current_url = url
+    for _ in range(4):
+        assert_allowed(current_url)
+        response = await client.get(current_url, follow_redirects=False)
+        if response.is_redirect:
+            location = response.headers.get("location")
+            if not location:
+                raise HTTPException(status_code=502, detail="Upstream returned a redirect without a location")
+            current_url = urljoin(str(response.url), location)
+            continue
+        return response
+    raise HTTPException(status_code=502, detail="Upstream exceeded redirect limit")
 
 
 def require_payer_auth(request: Request) -> None:
@@ -286,7 +315,10 @@ def require_gateway_payment(
             status_code=402,
             detail="This provider endpoint requires an AgentPay gateway payment context.",
         )
-    if worker_secret:
+    if not worker_secret:
+        if os.getenv("AGENTPAY_ALLOW_INSECURE_WORKER", "false").lower() != "true":
+            raise HTTPException(status_code=503, detail="AGENTPAY_WORKER_GATEWAY_SECRET is required for paid worker access.")
+    else:
         provided_secret = request.headers.get("x-agentpay-worker-key", "")
         if not hmac.compare_digest(provided_secret, worker_secret):
             raise HTTPException(status_code=401, detail="Invalid AgentPay worker gateway key.")
@@ -298,9 +330,8 @@ def require_gateway_payment(
 
 
 async def fetch_source_evidence(source_url: str, payment_identifier: str) -> dict[str, object]:
-    assert_allowed(source_url)
-    async with httpx.AsyncClient(timeout=12.0, follow_redirects=True) as client:
-        response = await client.get(source_url)
+    async with httpx.AsyncClient(timeout=12.0) as client:
+        response = await fetch_allowed(client, source_url)
         response.raise_for_status()
     soup = BeautifulSoup(response.text, "html.parser")
     title_node = soup.find("title")
@@ -468,8 +499,8 @@ async def rss_paywall(request: Request, paywall_request: RssPaywallRequest) -> d
         "excerpt": "",
     }
     try:
-        async with httpx.AsyncClient(timeout=12.0, follow_redirects=True) as client:
-            response = await client.get(feed_url)
+        async with httpx.AsyncClient(timeout=12.0) as client:
+            response = await fetch_allowed(client, feed_url)
             response.raise_for_status()
         soup = BeautifulSoup(response.text, "xml")
         item = soup.find("item") or soup.find("entry")
@@ -491,8 +522,8 @@ async def rss_paywall(request: Request, paywall_request: RssPaywallRequest) -> d
     except Exception as rss_error:
         article["rssError"] = str(rss_error)[:300]
         try:
-            async with httpx.AsyncClient(timeout=12.0, follow_redirects=True) as client:
-                article_response = await client.get(article_url)
+            async with httpx.AsyncClient(timeout=12.0) as client:
+                article_response = await fetch_allowed(client, article_url)
                 article_response.raise_for_status()
             article_soup = BeautifulSoup(article_response.text, "html.parser")
             title_node = article_soup.find("title")

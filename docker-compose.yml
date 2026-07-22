@@ -5,8 +5,10 @@ services:
       dockerfile: apps/worker/Dockerfile
     environment:
       - AGENTPAY_ALLOWED_HOSTS=localhost,127.0.0.1,docs.arc.io,developers.circle.com,docs.x402.org,lepton.thecanteenapp.com,www.arc.network,arc.network,agentpay-gateway.vercel.app,agentpay-gateway-beige.vercel.app
-      - AGENTPAY_WORKER_GATEWAY_SECRET=${AGENTPAY_WORKER_GATEWAY_SECRET:-}
-      - AGENTPAY_PAYER_API_KEY=${AGENTPAY_PAYER_API_KEY:-}
+      - AGENTPAY_WORKER_GATEWAY_SECRET=${AGENTPAY_WORKER_GATEWAY_SECRET:?Set AGENTPAY_WORKER_GATEWAY_SECRET in .env}
+      - AGENTPAY_PAYER_API_KEY=${AGENTPAY_PAYER_API_KEY:?Set AGENTPAY_PAYER_API_KEY in .env}
+      - AGENTPAY_ALLOW_INSECURE_WORKER=false
+      - AGENTPAY_ALLOW_LOCAL_UPSTREAMS=true
       - CIRCLE_ACCEPT_TERMS=${CIRCLE_ACCEPT_TERMS:-1}
       - OLLAMA_BASE_URL=http://host.docker.internal:11434
       - OLLAMA_TIMEOUT_SECONDS=90
